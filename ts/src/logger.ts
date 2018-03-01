@@ -25,7 +25,7 @@ logger.addColors({
 
 logger.remove(logger.transports.Console);
 logger.add(logger.transports.Console, { level: 'info', colorize:true });
-
+logger.add(logger.transports.File, { filename: "./logs/devel.log" });
 
 
 export {logger};

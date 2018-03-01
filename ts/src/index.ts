@@ -3,9 +3,11 @@ import uuid = require('uuid/v4');
 import events = require('events');
 import net = require('net');
 import path = require('path');
-import date = require('date-and-time');
+//import date = require('date-and-time');
 
 import logger = require('winston');
+
+import jobLib = require('./job');
 
 /*
 export function init() {
@@ -24,16 +26,38 @@ export function stash(x:number, uuid?:string): number {
 }
 */
 
+
+
+
+let jobsArray : { [id:string] : jobWrapper } = {};
+
 interface BinariesSpec {
    cancelBin : string;
    queueBin : string;
    submitBin : string;
 }
+interface jobWrapper {
+    'obj': jobLib.jobObject,
+    'status': jobStatus,
+    'nCycle': number
+};
+
+type engineSpec = "slurm" | "sge" | "emulate";
+type jobStatus = "CREATED" | "SUBMITTED" | "COMPLETED";
 
 let engine = null;
 let schedulerID = uuid();
-export let start = function(TCPport:number=2222, engineType:string, binaries:BinariesSpec) {
+export let start = function(TCPport:number=2222, engineType:engineSpec, binaries:BinariesSpec) {
     //console.log("Job Manager [" + schedulerID + "]")
-    logger.info("<<Job Manager [" + schedulerID + "]")
+    let d = new Date().toLocaleString();
+    logger.info(`${d} Job Manager ${schedulerID}`);
+
 }
 
+function _getCurrentJobList () {
+    let jobObjList:jobLib.jobObject[] = [];
+    for (let key in jobsArray) {
+        jobObjList.push(jobsArray[key].obj);
+    }
+    return jobObjList;
+}
