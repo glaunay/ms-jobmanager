@@ -57,8 +57,8 @@
    "files": [ // path to the files to compile
         "./ts/src/index.ts",
         "./ts/src/tests/jobManager_s1.ts",
-        "./ts/src/tests/md5.ts",
-        "./ts/src/logger.ts"/*
-        "./ts/src/job.ts"*/
+        //"./ts/src/tests/md5.ts",
+        "./ts/src/logger.ts",
+        "./ts/src/job.ts"
     ]
 }

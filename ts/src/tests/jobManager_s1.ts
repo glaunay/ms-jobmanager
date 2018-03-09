@@ -1,4 +1,4 @@
-import jm = require('../index.js');
+import jobManagerCore = require('../index.js');
 import logger = require('../logger.js');
 
 //let x = jm.jobManager;
@@ -9,6 +9,18 @@ let binLitt = {
     queueBin : "toto",
     submitBin : "tata"
 };
-jm.start(200, "slurm", binLitt);
+let dummyParameters = {
+    cacheDir : './testCache',
+    engineSpec : "emulate" as jobManagerCore.engineSpecs,
+    tcp : '127.0.0.1',
+    port : 2222
+  /*  tcp : ,
+    port : number,
+   // jobProfiles : any, // Need to work on that type
+    cycleLength? : string,
+    forceCache? : string,
+    engineSpec : engineSpec*/
+};
+jobManagerCore.start(dummyParameters);
 
 logger.logger.debug("FIN");

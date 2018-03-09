@@ -9,22 +9,24 @@ import logger = require('winston');
 
 
 logger.setLevels({
-    debug:0,
-    info: 1,
-    silly:2,
-    warn: 3,
-    error:4,
+    error:0,
+    warn:1,
+    info: 2,
+    verbose:3,
+    debug:4,
+    silly:5
 });
 logger.addColors({
     debug: 'green',
     info:  'cyan',
+    verbose:'gray',
     silly: 'magenta',
     warn:  'yellow',
     error: 'red'
 });
 
 logger.remove(logger.transports.Console);
-logger.add(logger.transports.Console, { level: 'info', colorize:true });
+logger.add(logger.transports.Console, { level: 'debug', colorize:true });
 logger.add(logger.transports.File, { filename: "./logs/devel.log" });
 
 
