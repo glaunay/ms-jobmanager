@@ -9,11 +9,17 @@ import stream = require('stream')
 import dir = require('node-dir');
 import md5 = require('md5');
 import streamLib = require('stream');
-
+//import spawn = require('spawn');
 import logger = require('winston');
+
+import { spawn } from 'child_process';
+
 //var Readable = require('stream').Readable;
 //var spawn = require('child_process').spawn;
 
+
+import engineLib = require('./lib/engine/index.js');
+import cType = require('./commonTypes.js');
 
 /*
     job serialization includes
@@ -21,40 +27,34 @@ import logger = require('winston');
     fileName : hash value
 */
 
-
-interface stringMap { [s: string] : string; }
-
-export interface engineHeaderFunc {
-    (/*source:string, subString:string, workDir:string*/) :string;
-}
-export interface engineList {
-    () :events.EventEmitter;
-}
-export interface engineTest {
-    () :string;
-}
-export interface engineKill {
-    (jobList:jobObject[]) :events.EventEmitter;
-}
-export interface engineInterface {
-    generateHeader : engineHeaderFunc;
-    submitBin : string;
-    list : engineList;
-    kill : engineKill;
-    testCommand : engineTest;
+export type jobStatus = "CREATED" | "SUBMITTED" | "COMPLETED"| "START"|"FINISHED";
+export function isJobStatus(type: string): type is jobStatus {
+    return type == "CREATED" || type ==  "SUBMITTED" || type ==  "COMPLETED" || type == "START"|| type == "FINISHED";
 }
 
-
-
+/* The jobObject behaves like an emitter
+ * Emitter exposes following event:
+ *          'lostJob', {Object}jobObject : any job not found in the process pool
+ *          'listError, {String}error) : the engine failed to list process along with error message
+ *          'folderSetPermissionError', {String}msg, {String}err, {Object}job
+ *          'scriptSetPermissionError', {String}err, {Object}job;
+ *          'scriptWriteError', {String}err, {Object}job
+ *          'scriptReadError', {String}err, {Object}job
+ *          'inputError', {String}err, {Object}job
+ *          'ready'
+ *          'submitted', {Object}job;
+ *          'completed', {Stream}stdio, {Stream}stderr, {Object}job // this event raising is delegated to jobManager
+ */
 
 //export class jobOpt {
 // Mandatory provided to the constructor
 export interface jobOptInterface {
-    engine : engineInterface,
+    engine : engineLib.engineInterface, // it is added by the jm.push method
    // queueBin : string,
     //submitBin : string,
     script? : string,
 
+    jobProfile?: string;
 
     port : number, // JobManager MicroService Coordinates
     adress : string, // ""
@@ -62,7 +62,7 @@ export interface jobOptInterface {
 
 // Opt, set by object setter
     cmd? : string,
-    exportVar? : stringMap,
+    exportVar? : cType.stringMap,
     inputs? : string [],
 
     tagTask? : string,
@@ -77,7 +77,7 @@ export interface jobOptInterface {
 interface jobSerialInterface {
     cmd? :string,
     script? :string,
-    exportVar? :stringMap,
+    exportVar? :cType.stringMap,
     modules? :string [],
     tagTask? :string,
     scriptHash :string,
@@ -99,7 +99,7 @@ interface jobSerialInterface {
 
 
 export function inputsMapper(inputLitt:any) : events.EventEmitter {
-    let newLitt : stringMap = {};
+    let newLitt : cType.stringMap = {};
     let emitter = new events.EventEmitter();
     let nTotal = Object.keys(inputLitt).length;
 
@@ -124,7 +124,10 @@ export function inputsMapper(inputLitt:any) : events.EventEmitter {
                 stream.push(inputValue);
                 stream.push(null);
             } // PARSER PROBLEM ';' below ? chech in JS
-        } else ( isStream(inputValue) ); { // Input value is already a stream
+        } else { // Input value is already a stream
+            if (!isStream(inputValue)) {
+                logger.error('unrecognized value while expecting stream')
+            }
             type = 'stream';
             //stream = new streamLib.Readable();
             stream = <streamLib.Readable>inputValue;
@@ -162,12 +165,13 @@ export class jobObject extends events.EventEmitter implements jobOptInterface  {
     ERR_jokers :number = 3; //  Number of time a job is allowed to be resubmitted if its stderr is non null
     MIA_jokers :number = 3; //  Number of time
     inputDir : string;
-    engine : engineInterface;
+    engine : engineLib.engineInterface;
+    jobProfile? : string;
     //queueBin : string;
     //submitBin : string;
     script? :string;
     cmd? :string;
-    exportVar? : stringMap = {};
+    exportVar? : cType.stringMap = {};
     inputs? :string [];
     port :number; // JobManager MicroService Coordinates
     adress :string; // ""
@@ -181,6 +185,13 @@ export class jobObject extends events.EventEmitter implements jobOptInterface  {
     cwdClone? :boolean = false;
     ttl? :number;
     modules? :string [] = [];
+
+    fileOut? :string;
+    fileErr? : string;
+    _stdout? :streamLib.Readable;
+    _stderr? :streamLib.Readable;
+
+
     constructor( jobOpt :jobOptInterface, uuid? :string ){
         super();
 
@@ -211,11 +222,16 @@ export class jobObject extends events.EventEmitter implements jobOptInterface  {
             this.ttl = jobOpt.ttl;
         if ('modules' in jobOpt)
             this.modules = jobOpt.modules;
+        if ('jobProfile' in jobOpt)
+            // if (jobOpt.jobProfile)
+            this.jobProfile =  jobOpt.jobProfile;
+
     }
     /*
 
     */
     start () :void {
+
         let self = this;
         mkdirp(this.inputDir, function(err) {
             if (err) {
@@ -308,25 +324,129 @@ export class jobObject extends events.EventEmitter implements jobOptInterface  {
     }
     // Process argument to create the string which will be dumped to an sbatch file
     setUp() : void {
-    var self = this;
-    var customCmd = false;
-    batchDumper(this).on('ready', function(string) {
-        var fname = self.workDir + '/' + self.id + '.batch';
+        let self = this;
+        let customCmd = false;
+        batchDumper(this).on('ready', function(string) {
+            let fname = self.workDir + '/' + self.id + '.batch';
         //if (self.emulated) fname = self.workDir + '/' + self.id + '.sh';
-        fs.writeFile(fname, string, function(err) {
-            if (err) {
-                return console.log(err);
-            }
-            jobIdentityFileWriter(self);
-            logger.info("END OF THE ROAD");
+            fs.writeFile(fname, string, function(err) {
+                if (err) {
+                    return console.log(err);
+                }
+                jobIdentityFileWriter(self);
+
+                self.submit(fname);
             /*if (self.emulated)
                 self.fork(fname);
             else
                 self.submit(fname);*/
+            });
         });
-    });
-}
+    }
+    // We try to submint always by spawn
+    submit(fname:string):void {
+        let self = this;
+       let submitArgArray = [fname];
 
+        logger.debug(`submitting w/, ${this.engine.submitBin} ${submitArgArray}`);
+        logger.debug(`workdir : > ${this.workDir} <`);
+
+        let process = spawn(this.engine.submitBin, submitArgArray, {
+            'cwd': this.workDir
+        })
+        .on('exit', function() {
+           // self.emit('submitted', self);
+        }).on('error', (err) => {
+          logger.error('Failed to start subprocess.');
+        }).on('close', (code) => {
+            logger.debug(`exited with code ${code}`);
+        });
+
+
+        if (this.emulated) {
+            this._stdout = process.stdout;
+            this._stderr = process.stderr;
+        }
+
+
+       // logger.error(`${util.format(process)}`);
+    }
+
+    resubmit():void  {
+        let fname = this.workDir + '/' + this.id + '.batch';
+    /*if (this.emulated)
+        this.fork(fname);
+    else*/
+        this.submit(fname);
+    }
+
+    stdout():streamLib.Readable|null{
+        let fNameStdout:string = this.fileOut ? this.fileOut : this.id + ".out";
+        let fPath:string = this.workDir + '/' + fNameStdout;
+
+        //logger.error(this._stdout);
+        // Dump stream to file close it;
+        if (this._stdout){
+            logger.info("Found _stdout");
+            let ws = fs.createWriteStream(fPath);
+            this._stdout.pipe(ws);
+            this._stdout = undefined;
+        }
+        //if (this.emulated) return this.stdio;
+
+
+        if (!fs.existsSync(fPath)) {
+            logger.debug(`cant find file ${fPath}, forcing synchronicity...`);
+        }
+        fs.readdirSync(this.workDir).forEach(function(fn) {
+                logger.debug(`ddirSync : ${fn}`);
+        });
+
+        if ( !fs.existsSync(fPath) ) {
+            logger.error("Output file error, Still cant open output file, returning empy stream");
+            let dummyStream:streamLib.Readable = new streamLib.Readable();
+            dummyStream.push(null);
+            return dummyStream;
+        }
+
+    let stream:streamLib.Readable = fs.createReadStream(fPath, {
+            'encoding': 'utf8'
+        })
+        .on('error', function(m) {
+            let d = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
+            logger.error(`[${d}] An error occured while creating read stream:  fPath\n
+m`);
+        });
+    //stream.on("open", function(){ console.log("stdout stream opened");});
+    //stream.on("end", function(){console.log('this is stdout END');});
+    return stream;
+    }
+
+    stderr():streamLib.Readable|null{
+        let fNameStderr = this.fileErr ? this.fileErr : this.id + ".err";
+        if (this._stderr){
+            let ws = fs.createWriteStream(fNameStderr);
+            this._stderr.pipe(ws);
+            this._stderr = undefined;
+        }
+
+
+        let statErr:fs.Stats|undefined;
+        let bErr:boolean = true;
+        try { 
+            statErr = fs.statSync(this.workDir + '/' + fNameStderr);
+        } catch (err) {
+            bErr = false;
+        }
+        if (!bErr) return null;
+        statErr = <fs.Stats>statErr;
+        if (statErr.size === 0) {
+            return null;
+        }
+
+        let stream:streamLib.Readable = fs.createReadStream(this.workDir + '/' + fNameStderr);
+        return stream;
+    }
 }
 
 function jobIdentityFileWriter(job : jobObject) :void {
@@ -336,12 +456,13 @@ function jobIdentityFileWriter(job : jobObject) :void {
 }
 
 function batchDumper(job: jobObject) {
+
     let emitter : events.EventEmitter = new events.EventEmitter();
     let batchContentString  : string = "#!/bin/bash\n";
     let adress : string = job.emulated ? 'localhost' : job.adress;
     var trailer = 'echo "JOB_STATUS ' + job.id + ' FINISHED"  | nc -w 2 ' + adress + ' ' + job.port + " > /dev/null\n";
 
-    let engineHeader = job.engine.generateHeader()
+    let engineHeader = job.engine.generateHeader(job.id, job.jobProfile, job.workDir);
     batchContentString += engineHeader; /// ENGINE SPECIFIC PREPROCESSOR LINES
 
     batchContentString += 'echo "JOB_STATUS ' + job.id + ' START"  | nc -w 2 ' + adress + ' ' + job.port + " > /dev/null\n"

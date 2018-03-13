@@ -1,0 +1,60 @@
+{
+    "comments": "Definition of slurms set of preprocessors options values",
+    "definitions": {
+        "default": {
+            "partition": "medium-mobi",
+            "qos": "medium-mobi"
+        },
+        "arwen_gpu": {
+            "partition": "gpu_dp",
+            "qos": "gpu"
+        },
+        "arwen_cpu": {
+            "partition": "mpi-mobi",
+            "qos": "mpi-mobi"
+        },
+        "arwen_express": {
+            "partition": "express-mobi",
+            "qos": "express-mobi"
+        },
+        "arwen-dev_gpu": {
+            "partition": "gpu",
+            "qos": "gpu",
+            "gid": "ws_users",
+            "uid": "ws_ardock"
+        },
+        "arwen-dev_cpu": {
+            "partition": "ws-dev",
+            "qos": "ws-dev",
+            "gid": "ws_users",
+            "uid": "ws_ardock"
+        },
+        "arwen-prod_cpu": {
+            "partition": "ws-prod",
+            "qos": "ws-prod",
+            "gid": "ws_users",
+            "uid": "ws_ardock"
+        },
+        "arwen-dev_hex_16cpu": {
+            "partition": "ws-dev",
+            "qos": "ws-dev",
+            "gid": "ws_users",
+            "uid": "ws_ardock",
+            "nNodes": 1,
+            "nCores": 16
+        },
+        "arwen-prod_hex_16cpu": {
+            "partition": "ws-prod",
+            "qos": "ws-prod",
+            "gid": "ws_users",
+            "uid": "ws_ardock",
+            "nNodes": 1,
+            "nCores": 16
+        },
+        "arwen_hex_16cpu": {
+            "partition": "mpi-mobi",
+            "qos": "mpi-mobi",
+            "nCores": 16
+        }
+    }
+}

@@ -4,15 +4,19 @@ import net = require('net');
 import path = require('path');
 import util = require('util');
 import uuidv4 = require('uuid/v4');
-
+import streamLib = require('stream');
 //import date = require('date-and-time');
 
 import logger = require('winston');
 
 import jobLib = require('./job');
 
+import engineLib = require('./lib/engine/index.js');
+export {engineSpecs} from './lib/engine/index.js';
+import cType = require('./commonTypes.js');
 
-let engine :any = null; // to type with Engine contract function signature
+
+let engine :engineLib.engineInterface; // to type with Engine contract function signature
 
 let TCPport :number = 2222;
 let TCPip : string = '127.0.0.1';
@@ -72,29 +76,12 @@ interface BinariesSpec {
 }
 interface jobWrapper {
     'obj': jobLib.jobObject,
-    'status': jobStatus,
+    'status': jobLib.jobStatus,
     'nCycle': number
 };
 
-export type engineSpecs = "slurm" | "sge" | "emulate";
-function isEngineSpec(type: string): type is engineSpecs {
-    let a = type == "slurm" || type ==  "sge" ||type ==  "emulate";
-    logger.info(`${a}`);
-    return type == "slurm" || type ==  "sge" ||type ==  "emulate";
-}
-
-type jobStatus = "CREATED" | "SUBMITTED" | "COMPLETED";
-function isJobStatus(type: string): type is jobStatus {
-    return type == "CREATED" || type ==  "SUBMITTED" ||type ==  "COMPLETED";
-}
 
 let schedulerID = uuidv4();
-export let _start = function(TCPport:number=2222, engineType:engineSpecs, binaries:BinariesSpec) {
-    //console.log("Job Manager [" + schedulerID + "]")
-    let d = new Date().toLocaleString();
-    logger.info(`${d} Job Manager ${schedulerID}`);
-}
-
 
 interface jobManagerSpecs {
     cacheDir : string,
@@ -103,22 +90,21 @@ interface jobManagerSpecs {
    // jobProfiles : any, // Need to work on that type
     cycleLength? : string,
     forceCache? : string,
-    engineSpec : engineSpecs
+    engineSpec : engineLib.engineSpecs
 }
 function isSpecs(opt: any): opt is jobManagerSpecs {
-    logger.debug('???');
-    logger.debug(`${opt.cacheDir}`);
-    let b:any = opt.cacheDir instanceof(String)
+    //logger.debug('???');
+    //logger.debug(`${opt.cacheDir}`);
+    //let b:any = opt.cacheDir instanceof(String)
 
-    logger.debug(`${b}`);
-    b = typeof(opt.cacheDir);
-    logger.debug(`${b}`);
-    logger.debug(`${opt.port}`);
-    logger.debug(`${opt.tcp}`);
-     logger.debug(`${opt.engineSpec}`);
+    if(!path.isAbsolute(opt.cacheDir)) {
+        logger.error('cacheDir parameter must be an absolute path');
+        return false;
+    }
     if ('cacheDir' in opt && 'tcp' in opt && 'port' in opt && 'engineSpec' in opt)
-        return opt.cacheDir instanceof(String) && opt.tcp instanceof(String) && opt.port instanceof(Number) && isEngineSpec(opt.engineSpec);
-        logger.debug('niet');
+        return typeof(opt.cacheDir) == 'string' && typeof(opt.tcp) == 'string' &&
+               typeof(opt.port) == 'number' && engineLib.isEngineSpec(opt.engineSpec);
+        //logger.debug('niet');
     return false;
 }
 
@@ -127,7 +113,7 @@ function _openSocket(port:number) : events.EventEmitter {
     //var data = '';
 
     let server = net.createServer(function(socket) {
-        socket.write('#####nSlurm scheduler socket####\r\n');
+        socket.write('#####jobManager scheduler socket####\r\n');
         socket.pipe(socket);
         socket.on('data', function(buf) {
                 //console.log("incoming data");
@@ -173,15 +159,23 @@ function _pulse() {
     }
 }
 
-export function start(opt:jobManagerSpecs) {
+export function start(opt:jobManagerSpecs):events.EventEmitter {
+    logger.debug(`${util.format(opt)}`);
 
-    if (isStarted) return;
-    logger.warn("GOGO");
-    if (!isSpecs(opt)) {
-        logger.error("Options required to start manager : \"cacheDir\", \"tcp\", \"port\"");
-        logger.error(`${util.format(opt)}`);
-        return;
+    if (isStarted) {
+        let t:number = setTimeout(()=>{ eventEmitter.emit("ready"); });
+        return eventEmitter;
     }
+
+    if (!isSpecs(opt)) {
+        let msg:string = `Options required to start manager : \"cacheDir\", \"tcp\", \"port\"\n
+${util.format(opt)}`;
+        let t:number = setTimeout(()=>{ eventEmitter.emit("startupError", msg); });
+        return eventEmitter;
+    }
+
+    engine = engineLib.getEngine(opt.engineSpec);
+    emulator = opt.engineSpec == 'emulate' ? true : false;
 
     cacheDir = opt.cacheDir + '/' + scheduler_id;
     if(opt.tcp)
@@ -201,7 +195,7 @@ export function start(opt:jobManagerSpecs) {
         fs.mkdirSync(cacheDir);
     } catch (e) {
         if (e.code != 'EEXIST') throw e;
-        console.log("Cache found already found at " + cacheDir);
+        logger.error("Cache found already found at " + cacheDir);
     }
     logger.debug('[' + TCPip + '] opening socket at port ' + TCPport);
     let s = _openSocket(TCPport);
@@ -218,14 +212,17 @@ export function start(opt:jobManagerSpecs) {
             jobWarden();
         }, wardenPulse);
 
-        logger.info("       --->jobManager " + scheduler_id + " ready to process jobs<---\n\n");
+        logger.info(" -==JobManager " + scheduler_id + " ready to process jobs ==-\n\n");
         eventEmitter.emit("ready");
         })
         .on('data', _parseMessage);
+
+        return eventEmitter;
 }
 
 function jobWarden():void {
-    engine.list().on('data', function(d:any) {
+    engine.list().on('data', function(d:engineLib.engineListData) {
+        logger.debug(`${util.format(d)}`);
         for (let key in jobsArray) {
             let curr_job = jobsArray[key];
             if (curr_job.status === "CREATED") {
@@ -283,35 +280,41 @@ function _getCurrentJobList () {
     return jobObjList;
 }
 
-class dummyEngine {
-    constructor() {
 
-    }
-    submitBin:string = 'dummyExec';
-
-    generateHeader (/*a : string, b : string, c : string*/) {
-        return 'dummy Engine header';
-    }
-    list() {
-        return new events.EventEmitter();
-    }
-    kill(jobList : jobLib.jobObject[]) {
-        return new events.EventEmitter();
-    }
-    testCommand() {
-        return 'sleep 10; echo "this is a dummy command"';
+/*
+    TypeGuard for job parameters passed to the push function
+*/
+function _checkJobBean(obj:any):boolean{
+    if (!cType.isStringMapOpt(obj)) {
+        logger.error("unproper job parameter (not a string map)");
+        return false;
     }
 
+    if(!obj.hasOwnProperty('cmd') && !obj.hasOwnProperty('script')) {
+        logger.error("unproper job parameters (no script nor cmd)");
+        return false;
+    }
+
+    if(obj.hasOwnProperty('cmd')){
+        if(!obj.cmd) {
+            logger.error("unproper job parameters (undefined cmd)");
+            return false;
+        }
+    } else {
+        if(!obj.script) {
+            logger.error("unproper job parameters (undefined script)");
+            return false;
+        }
+    }
+    return true;
 }
+/* weak typing of the jobOpt  parameter */
+export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, namespace?: string) : jobLib.jobObject {
 
-export function push(jobProfileString : string, jobOpt : jobLib.jobOptInterface, namespace : string|null) : jobLib.jobObject {
-        /*console.log("jobProfile: " + jobProfileString + "\njobOpt:\n");
-        console.log(jobOpt);*/
+        logger.debug(`Following litteral was pushed \n ${util.format(jobOpt)}`);
         let jobID =  uuidv4();
-       // var self = this;
-        /* Define the new job parameters */
-        // We now expect an inputs parameter which has to be a list
         let workDir : string;
+
         if (namespace) {
             try { fs.mkdirSync(cacheDir + '/' + namespace); }
             catch (err) {
@@ -324,9 +327,11 @@ export function push(jobProfileString : string, jobOpt : jobLib.jobOptInterface,
         } else {
             workDir = cacheDir + '/' + jobID;
         }
+
+    /* Building a jobOptInterface litteral out of the jobOpt function parameter */
         let jobTemplate : jobLib.jobOptInterface = {
            // "engineHeader": engine.generateHeader(jobID, jobProfileString, workDir),
-            engine : new dummyEngine(),
+            "engine" : engine,
             "workDir": workDir,
             "emulated": emulator ? true : false,
             "adress": TCPip,
@@ -352,26 +357,18 @@ export function push(jobProfileString : string, jobOpt : jobLib.jobOptInterface,
             jobTemplate.ttl = jobOpt.ttl;
 
 
-        var newJob = new jobLib.jobObject(jobTemplate, jobID);
+        logger.debug(`Following jobTemplate was successfully buildt \n ${util.format(jobTemplate)}`);
+        let newJob = new jobLib.jobObject(jobTemplate, jobID);
+        logger.debug(`Following jobObject was successfully buildt \n ${util.format(newJob)}`);
 
-        newJob.start();
-
-        jobsArray[jobID] = {
-            'obj': newJob,
-            'status': 'CREATED',
-            'nCycle': 0
-        };
-
-        /*
-        var constraints = extractConstraints(jobTemplate);
-
+        let constraints = {}; //extractConstraints(jobTemplate);
         lookup(jobTemplate, constraints)
-            .on('known', function(validWorkFolder) {
-                console.log("I CAN RESURRECT YOU : " + validWorkFolder + ' -> ' + jobTemplate.tagTask);
-                _resurrect(newJob, validWorkFolder);
+            .on('known', function(validWorkFolder:string) {
+                //logger.info("I CAN RESURRECT YOU : " + validWorkFolder + ' -> ' + jobTemplate.tagTask);
+                //_resurrect(newJob, validWorkFolder);
             })
             .on('unknown', function() {
-                console.log("########## No previous equal job found ##########");
+                logger.debug("########## No previous equal job found ##########");
                 newJob.start();
 
                 jobsArray[jobID] = {
@@ -379,36 +376,36 @@ export function push(jobProfileString : string, jobOpt : jobLib.jobOptInterface,
                     'status': 'CREATED',
                     'nCycle': 0
                 };
-                if (debugMode)
-                    self.jobsView();
 
-                newJob.emitter.on('submitted', function(j) {
-                    console.log(j);
+                newJob.on('submitted', function(j) {
+        //console.log(j);
                     jobsArray[j.id].status = 'SUBMITTED';
-                    if (debugMode)
-                        self.jobsView();
+                //logger.debug(self.jobsView());
                 }).on('jobStart', function(job) {
                     // next lines for tests on squeueReport() :
                     engine.list()
-                }).on('scriptReadError', function (err, job) {
-                    console.error('ERROR while reading the script : ');
-                    console.error(err);
-                }).on('scriptWriteError', function (err, job) {
-                    console.error('ERROR while writing the coreScript : ');
-                    console.error(err);
-                }).on('scriptSetPermissionError', function (err, job) {
-                    console.error('ERROR while trying to set permissions of the coreScript : ');
-                    console.error(err);
-                });
 
-            })
-    */
+            // shall we call dropJob function here ?
+                }).on('scriptReadError', function (err, job) {
+                    logger.error(`ERROR while reading the script : \n ${err}`);
+                }).on('scriptWriteError', function (err, job) {
+                    logger.error(`ERROR while writing the coreScript : \n ${err}`);
+                }).on('scriptSetPermissionError', function (err, job) {
+                logger.error(`ERROR while trying to set permissions of the coreScript : \n ${err}`);
+            });
+        });
         exhaustBool = true;
         //console.log(jobsArray);
 
         return newJob;
     }
 
+function lookup(jobTemplate:any, constraints:any){
+    let emitter = new events.EventEmitter();
+    let t:number = setTimeout(()=>{ emitter.emit("unknown"); });
+
+    return emitter;
+}
 
 function _parseMessage(msg:string) {
     //console.log("trying to parse " + string);
@@ -416,7 +413,7 @@ function _parseMessage(msg:string) {
     let matches = msg.match(re);
     if (!matches) return;
 
-    let jid = matches[1];
+    let jid:string = matches[1];
     let uStatus = matches[2];
     if (!jobsArray.hasOwnProperty(jid)) {
         logger.warn(`unregistred job id ${jid}`);
@@ -425,16 +422,118 @@ function _parseMessage(msg:string) {
         //throw 'unregistred job id ' + jid;
     }
 
-    logger.debug(`Status Updating job ${jid} : from \'
-${jobsArray[jid].status} \' to \'${uStatus}\'`);
-    if(isJobStatus(uStatus))
+    logger.debug(`Status Updating job ${jid} : from \'${jobsArray[jid].status} \' to \'${uStatus}\'`);
+    if(jobLib.isJobStatus(uStatus))
         jobsArray[jid].status = uStatus;
     else
         logger.error(`unrecognized status at ${uStatus}`);
     if (uStatus === 'START')
         jobsArray[jid].obj.emit('jobStart', jobsArray[jid].obj);
     else if (uStatus === "FINISHED")
-        //_pull(jid); //TO DO
-     logger.error(`TO DO`);
+        _pull(jid); //TO DO
+     //logger.error(`TO DO`);
 }
+
+
+/*
+    handling job termination.
+    Eventualluy resubmit job if error found
+
+*/
+
+function _pull(jid:string) {
+
+    console.log("Pulling " + jid);
+    let jRef:jobWrapper = jobsArray[jid];
+    //console.dir(jobsArray[jid]);
+
+    if(jRef.obj.stderr()) {
+        let streamError = <streamLib.Readable>jRef.obj.stderr();
+        let stderrString:string|null = null;
+        streamError.on('data', function (datum) {
+            stderrString = stderrString ? stderrString + datum.toString() : datum.toString();
+        })
+        .on('end', function () {
+            if(!stderrString) { _storeAndEmit(jid); return; }
+
+            logger.warn(`Job ${jid} delivered a non empty stderr stream\n${stderrString}`);
+            jRef.obj.ERR_jokers--;
+            if (jRef.obj.ERR_jokers > 0){
+                console.log("Resubmitting this job " + jRef.obj.ERR_jokers + " try left");
+                jRef.obj.resubmit();
+                jRef.nCycle = 0;
+            } else {
+                console.log("This job will be set in error state");
+                _storeAndEmit(jid, 'error');
+            }
+        });
+    } else {
+    // At this point we store and unreference the job and emit as completed
+        _storeAndEmit(jid);
+    }
+};
+
+
+/*
+ We treat error state emission / document it for calling scope
+*/
+function _storeAndEmit(jid:string, status?:string) {
+    let jRef:jobWrapper = jobsArray[jid];
+
+    let jobObj:jobLib.jobObject = jRef.obj;
+    delete jobsArray[jid];
+    let stdout = jobObj.stdout();
+    let stderr = jobObj.stderr();
+
+
+    if(!status) {
+        //warehouse.store(jobObj);
+        jobObj.emit("completed",
+            stdout, stderr, jobObj
+        );
+    } else {
+        jobObj.emit("jobError",
+            stdout, stderr, jobObj
+        );
+    }
+
+
+    /*force emulated to dump stdout/err*/
+   /* if (jobObj.emulated) {
+        async.parallel([function(callback) {
+                        var fOut = jobObj.workDir + '/' + jobObj.id + '.err';
+                        var errStream = fs.createWriteStream(fOut);
+                        stderr.pipe(errStream).on('close', function() {
+                            callback(null, fOut);
+                        });
+                    }, function(callback) {
+                        var fOut = jobObj.workDir + '/' + jobObj.id + '.out';
+                        var outStream = fs.createWriteStream(fOut);
+                        stdout.pipe(outStream).on('close', function() {
+                            callback(null, fOut);
+                        });
+                    }], // Once all stream have been consumed, get filesnames
+                    function(err,results) {
+                        var _stdout = fs.createReadStream(results[1]);
+                        var _stderr = fs.createReadStream(results[0]);
+                         jobObj.emit("completed", _stdout, _stderr, jobObj);
+                    });
+    } else {
+        if(!status) {
+            warehouse.store(jobObj);
+            jobObj.emit("completed",
+                stdout, stderr, jobObj
+            );
+        } else {
+            jobObj.emit("jobError",
+                stdout, stderr, jobObj
+            );
+        }
+    }*/
+
+
+
+}
+
+
 
