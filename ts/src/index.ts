@@ -6,7 +6,7 @@ import util = require('util');
 import uuidv4 = require('uuid/v4');
 import streamLib = require('stream');
 //import date = require('date-and-time');
-
+import async = require('async');
 import logger = require('winston');
 
 import jobLib = require('./job');
@@ -486,41 +486,31 @@ function _storeAndEmit(jid:string, status?:string) {
     let stderr = jobObj.stderr();
 
 
-    if(!status) {
-        //warehouse.store(jobObj);
-        jobObj.emit("completed",
-            stdout, stderr, jobObj
-        );
-    } else {
-        jobObj.emit("jobError",
-            stdout, stderr, jobObj
-        );
-    }
-
-
     /*force emulated to dump stdout/err*/
-   /* if (jobObj.emulated) {
+    if (jobObj.emulated) {
         async.parallel([function(callback) {
                         var fOut = jobObj.workDir + '/' + jobObj.id + '.err';
                         var errStream = fs.createWriteStream(fOut);
-                        stderr.pipe(errStream).on('close', function() {
-                            callback(null, fOut);
+                        if (stderr)
+                            stderr.pipe(errStream).on('close', function() {
+                                callback(undefined, fOut);
                         });
                     }, function(callback) {
                         var fOut = jobObj.workDir + '/' + jobObj.id + '.out';
                         var outStream = fs.createWriteStream(fOut);
-                        stdout.pipe(outStream).on('close', function() {
-                            callback(null, fOut);
+                        if(stdout)
+                            stdout.pipe(outStream).on('close', function() {
+                            callback(undefined, fOut);
                         });
                     }], // Once all stream have been consumed, get filesnames
-                    function(err,results) {
+                    function(err:any,results:any) {
                         var _stdout = fs.createReadStream(results[1]);
                         var _stderr = fs.createReadStream(results[0]);
                          jobObj.emit("completed", _stdout, _stderr, jobObj);
                     });
     } else {
         if(!status) {
-            warehouse.store(jobObj);
+            //warehouse.store(jobObj);
             jobObj.emit("completed",
                 stdout, stderr, jobObj
             );
@@ -529,7 +519,7 @@ function _storeAndEmit(jid:string, status?:string) {
                 stdout, stderr, jobObj
             );
         }
-    }*/
+    }
 
 
 

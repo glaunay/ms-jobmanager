@@ -380,17 +380,18 @@ export class jobObject extends events.EventEmitter implements jobOptInterface  {
         this.submit(fname);
     }
 
+    /* we delegate to jobmanager the async.parrallel  treatment of _stdout, _stderr*/
+
     stdout():streamLib.Readable|null{
         let fNameStdout:string = this.fileOut ? this.fileOut : this.id + ".out";
         let fPath:string = this.workDir + '/' + fNameStdout;
-
-        //logger.error(this._stdout);
-        // Dump stream to file close it;
         if (this._stdout){
+             return this._stdout;
+            /*
             logger.info("Found _stdout");
             let ws = fs.createWriteStream(fPath);
             this._stdout.pipe(ws);
-            this._stdout = undefined;
+            this._stdout = undefined;*/
         }
         //if (this.emulated) return this.stdio;
 
@@ -424,10 +425,12 @@ m`);
 
     stderr():streamLib.Readable|null{
         let fNameStderr = this.fileErr ? this.fileErr : this.id + ".err";
+
         if (this._stderr){
-            let ws = fs.createWriteStream(fNameStderr);
+            return this._stderr;
+    /*      let ws = fs.createWriteStream(fNameStderr);
             this._stderr.pipe(ws);
-            this._stderr = undefined;
+            this._stderr = undefined;*/
         }
 
 
