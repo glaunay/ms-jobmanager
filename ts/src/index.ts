@@ -15,7 +15,7 @@ import engineLib = require('./lib/engine/index.js');
 export {engineSpecs} from './lib/engine/index.js';
 import cType = require('./commonTypes.js');
 
-
+let search:warehouse.warehousSearchInterface
 let engine :engineLib.engineInterface; // to type with Engine contract function signature
 
 let TCPport :number = 2222;
@@ -400,6 +400,15 @@ export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, 
         return newJob;
     }
 
+
+/*
+    always lookin warehouse first, if negative look in jobsArray
+
+    case1) warehouse/-, jobsArray/-              => submit
+    case2) warehouse/+, dont look at jobsArray   => resurrect
+    case3) warehouse/-, jobsArray/+              => copy jobReference and return it
+
+*/
 function lookup(jobTemplate:any, constraints:any){
     let emitter = new events.EventEmitter();
     let t:number = setTimeout(()=>{ emitter.emit("unknown"); });

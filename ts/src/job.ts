@@ -74,15 +74,19 @@ export interface jobOptInterface {
     modules? : string []
 }
 
-interface jobSerialInterface {
+export interface jobSerialInterface {
     cmd? :string,
     script? :string,
     exportVar? :cType.stringMap,
     modules? :string [],
     tagTask? :string,
     scriptHash :string,
-    inputHash :string[]
+    inputHash? :cType.stringMap[]
 }
+/*export function isjobSerial(data:{}): type is jobSerialInterface {
+    if (data.hasOwnProperty('script'))
+}*/
+
 //    constructor(queueBin:string, submitBin:string, engineHeader:engineHeaderFunc, script:string,
 /*    port:number, adress:number, workDir:string) {
        this.submitBin = submitBin;
@@ -546,5 +550,19 @@ function walkSync(dir:string, fileList:string[] = []) : string[]{
         : fileList.concat(path.join(dir, file));
     });
     return fileList;
+}
+
+
+
+class jobProxy extends jobObject {
+    constructor(jobOpt :jobOptInterface, uuid? :string){
+        super(jobOpt, uuid);
+
+
+    }
+
+
+
+
 }
 

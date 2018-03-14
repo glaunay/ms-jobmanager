@@ -65,6 +65,10 @@
         "ts/src/lib/engine/index.ts",
         "ts/src/lib/engine/localNixLike.ts",
         "ts/src/lib/engine/profiles/index.ts",
-        "ts/src/lib/engine/profiles/localNixLike.ts"
+        "ts/src/lib/engine/profiles/localNixLike.ts",
+        "ts/src/job-manager-client.ts",
+        "ts/src/job-manager-server.ts",
+        "ts/src/tests/jm-client.ts",
+        "ts/src/tests/jm-server.ts"
     ]
 }
