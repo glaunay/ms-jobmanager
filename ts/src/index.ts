@@ -15,11 +15,22 @@ import engineLib = require('./lib/engine/index.js');
 export {engineSpecs} from './lib/engine/index.js';
 import cType = require('./commonTypes.js');
 
-let search:warehouse.warehousSearchInterface
+import jmServer = require('./nativeJS/job-manager-server.js');
+
+//let search:warehouse.warehousSearchInterface;
+
 let engine :engineLib.engineInterface; // to type with Engine contract function signature
 
-let TCPport :number = 2222;
+
+let microEngine:engineLib.engineInterface = new engineLib.dummyEngine(); // dummy engine used by jobProxy instance
+
+// Address of the jobManager MicroService
 let TCPip : string = '127.0.0.1';
+// Port for communication w/ node workers
+let TCPport :number = 2222;
+// Port for consumer microServices
+let proxyPort: number = 8080;
+
 let scheduler_id :string = uuidv4();
 let dataLength :number = 0;
 
@@ -42,6 +53,7 @@ let emulator :boolean = false; // Trying to keep api/events intact while running
 
 let isStarted :boolean = false;
 
+let microServiceSocket:events.EventEmitter|undefined = undefined;
 
 // Foolowing module variable seem deprecated
 //var jobProfile = {};
@@ -90,8 +102,11 @@ interface jobManagerSpecs {
    // jobProfiles : any, // Need to work on that type
     cycleLength? : string,
     forceCache? : string,
-    engineSpec : engineLib.engineSpecs
+    engineSpec : engineLib.engineSpecs,
+    microServicePort?:number;
+    //asMicroService?:boolean;
 }
+
 function isSpecs(opt: any): opt is jobManagerSpecs {
     //logger.debug('???');
     //logger.debug(`${opt.cacheDir}`);
@@ -182,7 +197,11 @@ ${util.format(opt)}`;
         TCPip = opt.tcp;
     if(opt.port)
         TCPport = opt.port;
-
+    // if a port is provided for microservice we open connection
+    if(opt.microServicePort) {
+        microServiceSocket =  jmServer.listen(opt.microServicePort);
+        microServiceSocket.on('newJobSocket', pushMS);
+    }
     if(opt.cycleLength)
         wardenPulse = parseInt(opt.cycleLength);
     if (opt.forceCache)
@@ -308,6 +327,24 @@ function _checkJobBean(obj:any):boolean{
     }
     return true;
 }
+
+// New job packet arrived on MS socket
+function pushMS(data:any) {
+    logger.info(`newJob Packet arrived w/ ${util.format(data)}`);
+
+
+    
+
+
+    /*let jobOpt:jobLib.jobOptProxyInterface = {
+        engine : microEngine,
+
+
+    }*/
+
+
+}
+
 /* weak typing of the jobOpt  parameter */
 export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, namespace?: string) : jobLib.jobObject {
 

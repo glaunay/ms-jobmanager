@@ -20,6 +20,7 @@ import { spawn } from 'child_process';
 
 import engineLib = require('./lib/engine/index.js');
 import cType = require('./commonTypes.js');
+import { dummyEngine } from './lib/engine/index.js';
 
 /*
     job serialization includes
@@ -48,7 +49,7 @@ export function isJobStatus(type: string): type is jobStatus {
 
 //export class jobOpt {
 // Mandatory provided to the constructor
-export interface jobOptInterface {
+export interface jobOptInterface extends jobOptProxyInterface{
     engine : engineLib.engineInterface, // it is added by the jm.push method
    // queueBin : string,
     //submitBin : string,
@@ -73,6 +74,17 @@ export interface jobOptInterface {
     ttl? : number,
     modules? : string []
 }
+export interface jobOptProxyInterface {
+    engine? : engineLib.engineInterface; // It is useless in this context will be set to emulate.
+    script? : string,
+    jobProfile?: string;
+    cmd? : string,
+    exportVar? : cType.stringMap,
+    inputs? : string [],
+    tagTask? : string,
+    namespace? :string,
+    modules? : string []
+}
 
 export interface jobSerialInterface {
     cmd? :string,
@@ -81,7 +93,7 @@ export interface jobSerialInterface {
     modules? :string [],
     tagTask? :string,
     scriptHash :string,
-    inputHash? :cType.stringMap[]
+    inputHash? :cType.stringMap
 }
 /*export function isjobSerial(data:{}): type is jobSerialInterface {
     if (data.hasOwnProperty('script'))
@@ -163,32 +175,76 @@ export function inputsMapper(inputLitt:any) : events.EventEmitter {
 
 
 
-export class jobObject extends events.EventEmitter implements jobOptInterface  {
+
+/*
+    This object is meant to live in the job-manager-client space !!!!!!
+    We write it here to use TS.
+    It is basically an empty shell that forwards event and streams
+    W/in jmCore it is used as a virtual class for jobObject
+*/
+
+export class jobProxy extends events.EventEmitter {
     id : string;
+
+    script? :string;
+    cmd? :string;
+    exportVar? : cType.stringMap = {};
+    inputs? :string [];
+    jobProfile? : string;
+    tagTask? :string;
+    namespace? :string;
+    modules? :string [] = [];
+
+    constructor(jobOpt:any){ // Quick and dirty typing
+        super();
+        this.id = uuid ? uuid : uuidv4();
+        
+        if ('modules' in jobOpt)
+            this.modules = jobOpt.modules;
+        if ('jobProfile' in jobOpt)       
+            this.jobProfile =  jobOpt.jobProfile;
+        if('script' in jobOpt)
+            this.script =  jobOpt.script;
+        if ('tagTask' in jobOpt)
+            this.tagTask = jobOpt.tagTask;
+        if ('namespace' in jobOpt)
+            this.namespace = jobOpt.namespace;
+    }
+
+}
+
+
+
+export class jobObject extends jobProxy implements jobOptInterface  {
+   
     inputSymbols : any = {};
     ERR_jokers :number = 3; //  Number of time a job is allowed to be resubmitted if its stderr is non null
     MIA_jokers :number = 3; //  Number of time
     inputDir : string;
     engine : engineLib.engineInterface;
-    jobProfile? : string;
-    //queueBin : string;
-    //submitBin : string;
+    
+    /*
+    jobProfile? : string;   
     script? :string;
     cmd? :string;
     exportVar? : cType.stringMap = {};
     inputs? :string [];
+    tagTask? :string;
+       modules? :string [] = [];
+     namespace? :string;
+    */
     port :number; // JobManager MicroService Coordinates
     adress :string; // ""
     workDir :string;
 
 // Opt, set by object setter
-    tagTask? :string;
+    
     emulated? :boolean = false;
-    namespace? :string;
+   
     cwd? :string;
     cwdClone? :boolean = false;
     ttl? :number;
-    modules? :string [] = [];
+ 
 
     fileOut? :string;
     fileErr? : string;
@@ -197,9 +253,9 @@ export class jobObject extends events.EventEmitter implements jobOptInterface  {
 
 
     constructor( jobOpt :jobOptInterface, uuid? :string ){
-        super();
+        super(jobOpt);
 
-        this.id = uuid ? uuid : uuidv4();
+        
 
         this.engine =  jobOpt.engine;
       //  this.queueBin =  jobOpt.queueBin;
@@ -209,26 +265,17 @@ export class jobObject extends events.EventEmitter implements jobOptInterface  {
         this.workDir = jobOpt.workDir;
         this.inputDir  = this.workDir + "/input";
 
-        if('script' in jobOpt)
-            this.script =  jobOpt.script;
-        // Opt
-        if ('tagTask' in jobOpt)
-            this.tagTask = jobOpt.tagTask;
+      
         if ('emulated' in jobOpt)
             this.emulated = jobOpt.emulated;
-        if ('namespace' in jobOpt)
-            this.namespace = jobOpt.namespace;
+     
         if ('cwd' in jobOpt)
             this.cwd = jobOpt.cwd;
         if ('cwdClone' in jobOpt)
             this.cwdClone = jobOpt.cwdClone;
         if ('ttl' in jobOpt)
             this.ttl = jobOpt.ttl;
-        if ('modules' in jobOpt)
-            this.modules = jobOpt.modules;
-        if ('jobProfile' in jobOpt)
-            // if (jobOpt.jobProfile)
-            this.jobProfile =  jobOpt.jobProfile;
+     
 
     }
     /*
@@ -267,7 +314,7 @@ export class jobObject extends events.EventEmitter implements jobOptInterface  {
             modules : this.modules,
             tagTask : this.tagTask,
             scriptHash : '',
-            inputHash : []
+            inputHash : {}
         }
         let content:string = '';
         if(this.script) {
@@ -284,7 +331,11 @@ export class jobObject extends events.EventEmitter implements jobOptInterface  {
 
             walkSync(this.inputDir).forEach((file:string) => {
                     let content = fs.readFileSync(file).toString();
-                    serial.inputHash.push(md5(content));
+                    if (content) {
+                        let k = path.basename(file);
+                        if (serial.inputHash)
+                            serial.inputHash[k] = md5(content);
+                    }
                 });
         }
          return serial;
@@ -553,16 +604,4 @@ function walkSync(dir:string, fileList:string[] = []) : string[]{
 }
 
 
-
-class jobProxy extends jobObject {
-    constructor(jobOpt :jobOptInterface, uuid? :string){
-        super(jobOpt, uuid);
-
-
-    }
-
-
-
-
-}
 

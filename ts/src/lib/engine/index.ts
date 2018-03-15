@@ -61,7 +61,7 @@ export function getEngine(engineName?:engineSpecs): engineInterface{
 }
 
 
-class dummyEngine implements engineInterface {
+export class dummyEngine implements engineInterface {
     constructor() {
 
     }

@@ -1,3 +1,4 @@
+import libStream = require("stream");
 
 
 /*
@@ -24,3 +25,6 @@ export function isStringMapOpt(obj: any): obj is stringMapOpt {
         if(typeof(key) != 'string') return false;
     return true;
 }
+
+
+

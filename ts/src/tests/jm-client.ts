@@ -1,7 +1,12 @@
-import jmClient = require('../job-manager-client.js');
+import jobManagerMS = require('../nativeJS/job-manager-client.js');
 
-let data = {
-    'uuid' : 'toto',
+/*
+    Prototype of a micro service subscribing to the jobManager Microservice.
+
+*/
+
+
+let jobProxyOpt = {
     'script' : '../scripts/local_test.sh',
     'inputs' : {
         'file' : '../data/file.txt',
@@ -9,9 +14,9 @@ let data = {
     }
 }
 
-jmClient.start({port:8080, TCPip:'localhost'})
+jobManagerMS.start({port:8080, TCPip:'localhost'})
 .on('ready', ()=>{
-    jmClient.push(data);
+    jobManagerMS.push(jobProxyOpt);
 });
 
 
