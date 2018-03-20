@@ -17,7 +17,7 @@
   },
   "homepage": "https://github.com/melaniegarnier/ms-jobmanager#readme",
   "dependencies": {
-    "@types/async": "^2.0.47",
+    "@types/async": "^2.0.48",
     "@types/is-stream": "^1.1.0",
     "@types/md5": "^2.1.32",
     "@types/mkdirp": "^0.5.2",

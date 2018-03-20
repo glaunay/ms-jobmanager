@@ -70,6 +70,7 @@
        // "./ts/src/job-manager-client.ts",
        // "./ts/src/job-manager-server.ts",
         "./ts/src/tests/jm-client.ts",
-        "./ts/src/tests/jm-server.ts"
+        "./ts/src/tests/jm-server.ts",
+        "./ts/src/tests/jobInputObject.ts"
     ]
 }

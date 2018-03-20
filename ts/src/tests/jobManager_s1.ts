@@ -20,7 +20,8 @@ jobManagerCore.start(dummyParameters).on('ready', () => {
 
 
     let dummyJobOpt = {
-        'script' : __dirname + '/../scripts/local_test.sh'
+        'script' : __dirname + '/../../scripts/local_test.sh',
+        'inputs' : [__dirname + '/../../data/file.txt']
     };
     let job:any = jobManagerCore.push("default", dummyJobOpt);
 

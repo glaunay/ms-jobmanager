@@ -11,6 +11,7 @@ import md5 = require('md5');
 import streamLib = require('stream');
 //import spawn = require('spawn');
 import logger = require('winston');
+import async = require('async');
 
 import { spawn } from 'child_process';
 
@@ -21,6 +22,10 @@ import { spawn } from 'child_process';
 import engineLib = require('./lib/engine/index.js');
 import cType = require('./commonTypes.js');
 import { dummyEngine } from './lib/engine/index.js';
+
+
+import crypto = require('crypto');
+
 
 /*
     job serialization includes
@@ -53,37 +58,61 @@ export interface jobOptInterface extends jobOptProxyInterface{
     engine : engineLib.engineInterface, // it is added by the jm.push method
    // queueBin : string,
     //submitBin : string,
-    script? : string,
+    //script? : string|streamLib.Readable,
 
-    jobProfile?: string;
+    //jobProfile?: string;
 
     port : number, // JobManager MicroService Coordinates
     adress : string, // ""
     workDir : string,
 
 // Opt, set by object setter
-    cmd? : string,
-    exportVar? : cType.stringMap,
-    inputs? : string [],
+    //cmd? : string,
+    //exportVar? : cType.stringMap,
+    //inputs? : string [],
 
-    tagTask? : string,
+    //tagTask? : string,
     emulated? : boolean,
-    namespace? :string,
+    //namespace? :string,
     cwd? : string,
     cwdClone? : boolean,
     ttl? : number,
-    modules? : string []
+    //modules? : string []
 }
+
+export interface inputDataSocket { [s: string] : streamLib.Readable; }
 export interface jobOptProxyInterface {
-    engine? : engineLib.engineInterface; // It is useless in this context will be set to emulate.
-    script? : string,
+    //engine? : engineLib.engineInterface; 
+    script? : string|streamLib.Readable,
     jobProfile?: string;
     cmd? : string,
     exportVar? : cType.stringMap,
-    inputs? : string [],
+    inputs? : inputDataSocket|string[],
     tagTask? : string,
     namespace? :string,
     modules? : string []
+}
+
+
+/*
+    type guard for data container send from the consumer microservice to the JM.
+    aka "newJobSocket" event
+*/
+export function isJobOptProxy(data: any): data is jobOptProxyInterface {
+    if (!data.hasOwnProperty('script') && !data.hasOwnProperty('inputs')) return false;
+
+    if (!isStream(data.script)){
+        logger.error("jobOptProxy script value is not a readable stream");
+        return false;
+    }
+    for (let k in data.inputs){
+        if ( !isStream(data.inputs[k]) ){
+            logger.error(`jobOptProxy input value \"${k}\" is not a readable stream`);
+            return false;
+        }
+    }
+
+    return true;
 }
 
 export interface jobSerialInterface {
@@ -113,12 +142,147 @@ export interface jobSerialInterface {
 
 }*/
 
+//interface symbolStreamTuple 
 
-export function inputsMapper(inputLitt:any) : events.EventEmitter {
-    let newLitt : cType.stringMap = {};
+export class jobInputs extends events.EventEmitter {
+    streams:cType.streamMap = {};
+    paths:cType.stringMap = {};
+    hashes:cType.stringMap = {}
+
+    hashable:boolean=false;
+    /* Constructor can receive a map w/ two types of value*/
+    constructor(data:{}|any[], skip?:boolean){
+        super();
+        let safeNameInput:boolean = true;
+        let buffer:any = {};
+        // Coherce array in litteral, autogenerate keys
+        if (data.constructor === Array) {
+            safeNameInput = false;
+            let a = <Array<any>>data;
+            for (let e of a.entries())
+                buffer[`file${e[0]}`] = e[1];
+        } else {
+            buffer = data;
+        }
+        if (!cType.isStreamOrStringMap(buffer))
+            throw(`Wrong format for ${util.format(buffer)}`);
+        let nTotal = Object.keys(buffer).length;
+        logger.debug(`nTotal ${nTotal} supplied job inputs`);
+
+
+        for (let key in data) {
+            if( isStream(buffer[key]) )
+                this.streams[key] = <streamLib.Readable>buffer[key];
+            else {
+                try{
+                    //if (!safeNameInput) throw('file naming is unsafe');
+                    let datum:string = <string>buffer[key];
+                    fs.lstatSync(datum).isFile();
+                    let k = path.basename(datum).replace(/\.[^/.]+$/, ""); 
+                    this.streams[k] = fs.createReadStream(datum);
+                    logger.debug(`${buffer[key]} is a file, stream assigned to ${k}`);
+                } catch(e) {
+                    logger.debug(`${key} is not a file`);
+                  // Handle error
+                    if(e.code == 'ENOENT'){
+                    //no such file or directory
+                    //do something
+                    }else {
+                    //do something else
+                    }
+                    this.streams[key] = new streamLib.Readable();
+                    //s._read = function noop() {}; // redundant? see update below
+                    this.streams[key].push(<string>buffer[key]);
+                    this.streams[key].push(null);
+               }
+            }
+
+        }
+    }
+    hash():cType.stringMap|undefined {
+        if (!this.hashable) {
+            logger.warn('Trying to get hash of inputs before write it to files');
+            return undefined;
+        }
+        return this.hashes;
+    }
+    write(location:string):jobInputs{
+        logger.info("Writing");
+        /*let iteratee = function(string:symbol,stream:streamLib.Readable){
+            let target = fs.createWriteStream(`${location}/${symbol}.inp`);
+            stream.pipe(target);//.on('finish', function () { ... });
+        }*/
+        let self = this;
+        let inputs:any[] = [];
+        Object.keys(this.streams).forEach((k) => {
+            let tuple: [string, streamLib.Readable] = [k, self.streams[k]];
+            inputs.push(tuple);
+        });
+
+        let promises = inputs.map(function(tuple) {
+            return new Promise(function(resolve,reject){
+               
+
+                let path = `${location}/${tuple[0]}.inp`;
+                let target = fs.createWriteStream(path);
+
+                //logger.error(`Stream input symbol ${tuple[0]}  = Dumped to => ${path}`);
+
+                tuple[1].pipe(target)
+                .on('data',(d:any)=>{console.log(d);})
+                .on('finish', () => {                    
+                    // the file you want to get the hash    
+                    let fd = fs.createReadStream(path);
+                    let hash = crypto.createHash('sha1');
+                    hash.setEncoding('hex');
+                   // fd.on('error',()=>{logger.error('KIN')});
+                    fd.on('end', function() {
+                        hash.end();
+                        let sum = hash.read().toString();
+                        self.hashes[tuple[0]] = sum; // the desired sha1sum                        
+                        resolve([tuple[0], path, sum]);//.
+                    });
+// read all file and pipe it (write it) to the hash object
+                    fd.pipe(hash);
+                });
+            });
+        });
+        logger.info('Launching promises');
+        Promise.all(promises).then(values => {           
+            self.hashable = true;
+            //logger.error(`${values}`);
+            self.emit('OK', values)
+          }, reason => {
+            console.log(reason)
+          });
+
+        return this;
+    }
+
+    
+}
+
+
+
+
+/*
+    We change this function so that newLitt is 
+    a map of streams
+    instead of th previous map of strings
+    piping file content in hash
+    https://stackoverflow.com/questions/18658612/obtaining-the-hash-of-a-file-using-the-stream-capabilities-of-crypto-module-ie
+    */
+
+export function inputsMapper(inputLitt:any, skip?:boolean) : events.EventEmitter {
+    let newLitt : cType.streamMap = {};
     let emitter = new events.EventEmitter();
-    let nTotal = Object.keys(inputLitt).length;
+    if (skip) {
+        setTimeout(()=>{emitter.emit('mapped', inputLitt)}, 5);
+        logger.debug("skipping input Mapper")
+        return emitter;
+    }
 
+    let nTotal = Object.keys(inputLitt).length;
   //  if (debugMode) {
         logger.debug(`nTotal ${nTotal} inputLitt`);
         //console.log("nTotal = " + nTotal + ", inputLitt : ");
@@ -139,7 +303,7 @@ export function inputsMapper(inputLitt:any) : events.EventEmitter {
                 stream = new streamLib.Readable();
                 stream.push(inputValue);
                 stream.push(null);
-            } // PARSER PROBLEM ';' below ? chech in JS
+            }
         } else { // Input value is already a stream
             if (!isStream(inputValue)) {
                 logger.error('unrecognized value while expecting stream')
@@ -149,7 +313,7 @@ export function inputsMapper(inputLitt:any) : events.EventEmitter {
             stream = <streamLib.Readable>inputValue;
         }
         stream.on('data',function(d){
-            newLitt[symbol] += d.toString();
+            //newLitt[symbol] += d.toString();
         })
         .on('end', function(){
             nTotal--;
@@ -166,7 +330,7 @@ export function inputsMapper(inputLitt:any) : events.EventEmitter {
     };
 
     for (let symbol in inputLitt) {
-        newLitt[symbol] = '';
+        //newLitt[symbol] = '';
         let inputValue = inputLitt[symbol];
         spit(inputValue, symbol);
     }
@@ -181,12 +345,15 @@ export function inputsMapper(inputLitt:any) : events.EventEmitter {
     We write it here to use TS.
     It is basically an empty shell that forwards event and streams
     W/in jmCore it is used as a virtual class for jobObject
+    Following event occur on the job-manager-client side 
+    job.emit('inputError')
+    job.emit('scriptError')
 */
 
 export class jobProxy extends events.EventEmitter {
     id : string;
 
-    script? :string;
+    script? :string|streamLib.Readable;
     cmd? :string;
     exportVar? : cType.stringMap = {};
     inputs? :string [];
@@ -195,7 +362,7 @@ export class jobProxy extends events.EventEmitter {
     namespace? :string;
     modules? :string [] = [];
 
-    constructor(jobOpt:any){ // Quick and dirty typing
+    constructor(jobOpt:any, uuid?:string){ // Quick and dirty typing
         super();
         this.id = uuid ? uuid : uuidv4();
         
@@ -209,6 +376,8 @@ export class jobProxy extends events.EventEmitter {
             this.tagTask = jobOpt.tagTask;
         if ('namespace' in jobOpt)
             this.namespace = jobOpt.namespace;
+        if ('inputs' in jobOpt)
+            this.inputs = jobOpt.inputs;
     }
 
 }
@@ -223,6 +392,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
     inputDir : string;
     engine : engineLib.engineInterface;
     
+    fromConsumerMS : boolean = false;
     /*
     jobProfile? : string;   
     script? :string;
@@ -245,7 +415,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
     cwdClone? :boolean = false;
     ttl? :number;
  
-
+    scriptFilePath?:string;
     fileOut? :string;
     fileErr? : string;
     _stdout? :streamLib.Readable;
@@ -253,7 +423,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
 
 
     constructor( jobOpt :jobOptInterface, uuid? :string ){
-        super(jobOpt);
+        super(jobOpt, uuid);
 
         
 
@@ -309,7 +479,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
     getSerialIdentity () : jobSerialInterface {
         let serial : jobSerialInterface = {
             cmd : this.cmd,
-            script : this.script,
+            script : this.scriptFilePath,
             exportVar : this.exportVar,
             modules : this.modules,
             tagTask : this.tagTask,
@@ -318,7 +488,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
         }
         let content:string = '';
         if(this.script) {
-            content = fs.readFileSync(this.script).toString(); // TO CHECK
+            content = fs.readFileSync(<string>this.scriptFilePath).toString(); // TO CHECK
         } else if(this.cmd) {
             content = this.cmd;
         } else {
@@ -358,18 +528,29 @@ export class jobObject extends jobProxy implements jobOptInterface  {
         // console.log("-----------------------------------------------------------------");
         let stream = null;
         let self = this;
-        inputsMapper(this.inputs).on('mapped', function(inputsAsStringLitt) {
-        // console.log('inputsAsStringLitt :')
-        // console.log(inputsAsStringLitt);
+        logger.error('############################');
+        inputsMapper(this.inputs, this.fromConsumerMS).on('mapped', function(inputsAsStringLitt) {
+
+
+            // We NEED TO ASYNC PARRALLEL THIS FILES DUMP
+
             let nTotal = Object.keys(inputsAsStringLitt).length;
                 for (let symbol in inputsAsStringLitt) {
-                    let fileContent = inputsAsStringLitt[symbol];
+                    let srcContent = inputsAsStringLitt[symbol];
                     let dumpFile = self.inputDir + '/' + symbol + '.inp';
-                try {
-                    fs.writeFileSync(dumpFile, fileContent);
-                } catch (err) {
-                    console.error(err);
-                }
+               // try {
+                    let target = fs.createWriteStream(dumpFile);
+                    logger.error("inputsMapper");
+                    logger.error(`${util.format(srcContent)}`);
+
+                    srcContent.pipe(target);
+                    /*if(self.fromConsumerMS) {
+                    }
+                    srcContent.pipe    
+                    fs.writeFileSync(dumpFile, srcContent);*/
+                //} catch (err) {
+                //    console.error(err);
+               // }
                 self.inputSymbols[symbol] = dumpFile;
             }
         // console.log("ISS");
@@ -545,9 +726,9 @@ function batchDumper(job: jobObject) {
     }
 
     if (job.script) {
-        var fname = job.workDir + '/' + job.id + '_coreScript.sh';
-        batchContentString += '. ' + fname + '\n' + trailer;
-        _copyScript(job, fname, /*string,*/ emitter);
+        job.scriptFilePath = job.workDir + '/' + job.id + '_coreScript.sh';
+        batchContentString += '. ' + job.scriptFilePath + '\n' + trailer;
+        _copyScript(job, job.scriptFilePath, /*string,*/ emitter);
         /* This should not be needed, as _copyScript emits the ready event in async block
              setTimeout(function(){
              emitter.emit('ready', string);
@@ -572,7 +753,11 @@ function batchDumper(job: jobObject) {
 function _copyScript(job : jobObject, fname : string, emitter : events.EventEmitter) {
     //if (!job.script)
     //    return;
-    let src : streamLib.Readable = fs.createReadStream(<string>job.script);
+    let src : streamLib.Readable;
+    if(isStream(job.script))
+        src = <streamLib.Readable>job.script;
+    else
+        src = fs.createReadStream(<string>job.script);
     src.on("error", function(err) {
         job.emit('scriptReadError', err, job);
     });

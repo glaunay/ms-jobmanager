@@ -3,6 +3,7 @@ let socketIO = require('socket.io');
 let HTTP = require('http');
 let jobLib = require('../job.js');
 let ss = require('socket.io-stream');
+let logger = require('winston');
 //import ss = require('./node_modules/socket.io-stream/socket.io-stream.js');
 
 //import comType = require('./job-manager-comTypes.js');
@@ -16,7 +17,8 @@ export function listen(port) {
     let server = HTTP.createServer();
     io = socketIO(server);
     io.on('connection', function(socket){
-         socket.on('newJob', (data) => {
+        evt.emit('connection');
+        socket.on('newJobSocket', (data) => {
 
         let streamMap = {
             script : ss.createStream(),
@@ -33,7 +35,7 @@ export function listen(port) {
         //streamMap.script.pipe(process.stdout)
     // Emitting the corresponding event/Symbols for socket streaming
 
-        evt.emit('newJob', streamMap);
+        evt.emit('newJobSocket', streamMap);
 
     });
 

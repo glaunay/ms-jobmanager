@@ -147,11 +147,10 @@ function _openSocket(port:number) : events.EventEmitter {
         eventEmitter.emit('error', e);
     });
     server.on('listening', function() {
-        logger.debug('Listening on ' + port + '...');
-        eventEmitterSocket.emit('listening');
+        logger.debug('Listening on ' + port + '...');      
+        eventEmitterSocket.emit('listening');        
     });
     server.on('connection', function(s) {
-
         //console.log('connection w/ ' + data);
         s.on('close', function() {
             //  console.log('Packet connexion closed');
@@ -200,7 +199,12 @@ ${util.format(opt)}`;
     // if a port is provided for microservice we open connection
     if(opt.microServicePort) {
         microServiceSocket =  jmServer.listen(opt.microServicePort);
+        logger.debug(`Listening for consumer microservices at : ${opt.microServicePort}`);
         microServiceSocket.on('newJobSocket', pushMS);
+        
+        microServiceSocket.on('connection',()=>{
+            logger.debug('Connection on microservice consumer socket');
+        });
     }
     if(opt.cycleLength)
         wardenPulse = parseInt(opt.cycleLength);
@@ -241,7 +245,7 @@ ${util.format(opt)}`;
 
 function jobWarden():void {
     engine.list().on('data', function(d:engineLib.engineListData) {
-        logger.debug(`${util.format(d)}`);
+        logger.silly(`${util.format(d)}`);
         for (let key in jobsArray) {
             let curr_job = jobsArray[key];
             if (curr_job.status === "CREATED") {
@@ -331,9 +335,12 @@ function _checkJobBean(obj:any):boolean{
 // New job packet arrived on MS socket
 function pushMS(data:any) {
     logger.info(`newJob Packet arrived w/ ${util.format(data)}`);
-
-
-    
+    if(jobLib.isJobOptProxy(data)) {
+        logger.info(`jobOpt successfully received`);
+    }
+    let jobProfile = data.jobProfile;
+    data.fromConsumerMS = true;
+    let job = push(jobProfile, data);
 
 
     /*let jobOpt:jobLib.jobOptProxyInterface = {
@@ -393,11 +400,22 @@ export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, 
         if ('ttl' in jobOpt)
             jobTemplate.ttl = jobOpt.ttl;
 
+        
+
+
 
         logger.debug(`Following jobTemplate was successfully buildt \n ${util.format(jobTemplate)}`);
         let newJob = new jobLib.jobObject(jobTemplate, jobID);
-        logger.debug(`Following jobObject was successfully buildt \n ${util.format(newJob)}`);
+       
 
+
+        // This is a hack to skip inputsMapper call, in case data come from consumer, 
+        // all inputs are already well formated containers w/ readable streams
+        if('fromConsumerMS' in jobOpt)
+            newJob.fromConsumerMS = jobOpt.fromConsumerMS;
+
+        logger.debug(`Following jobObject was successfully buildt \n ${util.format(newJob)}`);
+        
         let constraints = {}; //extractConstraints(jobTemplate);
         lookup(jobTemplate, constraints)
             .on('known', function(validWorkFolder:string) {

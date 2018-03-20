@@ -4,7 +4,7 @@ let io = require('socket.io-client');
 //import cType = require('./commonTypes.js');
 let fs = require('fs');
 let ss = require('socket.io-stream');
-let logger = require('./logger.js');
+let logger = require('winston');
 let util = require('util');
 //import libStream = require("stream");
 
@@ -21,7 +21,12 @@ export function start(opt){
     let evt = new EventEmitter();
     //socket.connect('http://localhost:8080');
     // KINDA USELESS FOR NOW
-    socket = io('http://' + opt.TCPip + ':' + opt.port).on("connect",()=>{evt.emit("ready");});
+    let url = 'http://' + opt.TCPip + ':' + opt.port;
+    logger.debug(`jobmanager core microservice coordinates defined as \"${url}\"`);
+    socket = io(url).on("connect",()=>{
+        logger.debug(`manage to connect to jobmanager core microservice at ${url}`);
+        evt.emit("ready");        
+    });
     return evt
 }
 
@@ -52,7 +57,7 @@ export function push(data) {
         tagTask : undefined,
         namespace:undefined,
         exportVar : undefined,
-        jobProfile : undefined,
+        jobProfile : "default",
         inputs : {}
     }
     for (let k in data) {
@@ -63,18 +68,19 @@ export function push(data) {
         jobOpt[k] = data[k];
     }
 
-    logger.debug(`Passing following jobOpt to jobProxy constructor\n${util.format(jobpt)}`);
-    let job = jobLib.jobProxy(jobOpt);
+    logger.debug(`Passing following jobOpt to jobProxy constructor\n${util.format(jobOpt)}`);
+    let job = new jobLib.jobProxy(jobOpt);
 
 
     // Building streams
-    jobOpt = buildStreams(jobOpt);
+    jobOpt = buildStreams(jobOpt, job);
+    logger.debug(`${util.format(jobOpt)}`);
     // Emitting the corresponding event/Symbols for socket streaming;
     socket.on('connect',()=>{});
-    ss(socket, {}).on('script', (stream)=>{ sMap.script.pipe(stream); });
-    for (let inputEvent in sMap.inputs)
-        ss(socket, {}).on(inputEvent, (stream)=>{ sMap.inputs[inputEvent].pipe(stream);});
-
+    ss(socket, {}).on('script', (stream)=>{ jobOpt.script.pipe(stream); });
+    for (let inputEvent in jobOpt.inputs)
+        ss(socket, {}).on(inputEvent, (stream)=>{ jobOpt.inputs[inputEvent].pipe(stream);});
+    logger.debug('emiting newJobSocket');
     socket.emit('newJobSocket', data);
 
     return job;
@@ -82,7 +88,7 @@ export function push(data) {
 
 
 // Async stream build  async.parrallel
-function buildStreams(data) {
+function buildStreams(data, job) {
 
     let scriptSrcStream;
 
@@ -90,13 +96,23 @@ function buildStreams(data) {
         script : fs.createReadStream(data.script),
         inputs : {}
     };
+    sMap.script.on('error', function(){       
+        let msg = `Failed to create read stream from ${data.script}`;
+        job.emit('scriptError', msg);
+    });
+
     for(let inputSymbol in data.inputs) {
         let filePath = data.inputs[inputSymbol];   
         sMap.inputs[inputSymbol] = fs.createReadStream(filePath);
+        sMap.inputs[inputSymbol].on('error', function(){ 
+            let msg = `Failed to create read stream from ${filePath}`;
+            job.emit('inputError', msg);
+        });
     }
-    data.script = sMap.scrit;
+    data.script = sMap.script;
     data.inputs = sMap.inputs;
-    
+    logger.debug("steams buildt");
+    logger.debug(typeof(sMap.script));
     return data;
 }
 
@@ -105,6 +121,7 @@ function streamWrap(source) {
     // if source is a string// a path to a file we make it a stream
     fs.stat(source, function(err, stat) {
         if(err == null) {
+            // string is a file
             fs.createReadStream(filePath);
             console.log('File exists');
         } else if(err.code == 'ENOENT') {
@@ -114,7 +131,6 @@ function streamWrap(source) {
             console.log('Some other error: ', err.code);
         }
     });
-
 }
 
 /* weak typing of the jobOpt  parameter , maybe develop a signature that core and client method should comply to ?*/
