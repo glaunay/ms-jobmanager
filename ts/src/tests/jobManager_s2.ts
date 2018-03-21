@@ -28,7 +28,7 @@ jobManagerCore.start(dummyParameters).on('ready', () => {
         stdout.on("end", () => {logger.logger.info(stdoutStr);});
     });
     */
-
+    
     }).on('startupError', (msg) => {
          logger.logger.error(msg);
          process.exit(1);

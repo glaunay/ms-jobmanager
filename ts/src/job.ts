@@ -52,9 +52,43 @@ export function isJobStatus(type: string): type is jobStatus {
  *          'completed', {Stream}stdio, {Stream}stderr, {Object}job // this event raising is delegated to jobManager
  */
 
-//export class jobOpt {
-// Mandatory provided to the constructor
-export interface jobOptInterface extends jobOptProxyInterface{
+export interface inputDataSocket { [s: string] : streamLib.Readable|string; }
+export interface jobOptProxyInterface {
+    //engine? : engineLib.engineInterface; 
+    script? : string|streamLib.Readable,
+    jobProfile?: string;
+    cmd? : string,
+    exportVar? : cType.stringMap,
+    inputs? : inputDataSocket|string[]|jobInputs,
+    tagTask? : string,
+    namespace? :string,
+    modules? : string [],
+    socket?:any//SocketIO.socket WE DONT TYPEGUARD IT YET !!
+}
+
+
+/*
+    type guard for data container send from the consumer microservice to the JM.
+    aka "newJobSocket" event
+*/
+export function isJobOptProxy(data: any): data is jobOptProxyInterface {
+    if (!data.hasOwnProperty('script') && !data.hasOwnProperty('inputs')) return false;
+
+    if (!isStream(data.script)){
+        logger.error("jobOptProxy script value is not a readable stream");
+        return false;
+    }
+    for (let k in data.inputs){
+        if ( !isStream(data.inputs[k]) ){
+            logger.error(`jobOptProxy input value \"${k}\" is not a readable stream`);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+ export interface jobOptInterface extends jobOptProxyInterface{
     engine : engineLib.engineInterface, // it is added by the jm.push method
    // queueBin : string,
     //submitBin : string,
@@ -80,40 +114,7 @@ export interface jobOptInterface extends jobOptProxyInterface{
     //modules? : string []
 }
 
-export interface inputDataSocket { [s: string] : streamLib.Readable; }
-export interface jobOptProxyInterface {
-    //engine? : engineLib.engineInterface; 
-    script? : string|streamLib.Readable,
-    jobProfile?: string;
-    cmd? : string,
-    exportVar? : cType.stringMap,
-    inputs? : inputDataSocket|string[],
-    tagTask? : string,
-    namespace? :string,
-    modules? : string []
-}
 
-
-/*
-    type guard for data container send from the consumer microservice to the JM.
-    aka "newJobSocket" event
-*/
-export function isJobOptProxy(data: any): data is jobOptProxyInterface {
-    if (!data.hasOwnProperty('script') && !data.hasOwnProperty('inputs')) return false;
-
-    if (!isStream(data.script)){
-        logger.error("jobOptProxy script value is not a readable stream");
-        return false;
-    }
-    for (let k in data.inputs){
-        if ( !isStream(data.inputs[k]) ){
-            logger.error(`jobOptProxy input value \"${k}\" is not a readable stream`);
-            return false;
-        }
-    }
-
-    return true;
-}
 
 export interface jobSerialInterface {
     cmd? :string,
@@ -124,25 +125,6 @@ export interface jobSerialInterface {
     scriptHash :string,
     inputHash? :cType.stringMap
 }
-/*export function isjobSerial(data:{}): type is jobSerialInterface {
-    if (data.hasOwnProperty('script'))
-}*/
-
-//    constructor(queueBin:string, submitBin:string, engineHeader:engineHeaderFunc, script:string,
-/*    port:number, adress:number, workDir:string) {
-       this.submitBin = submitBin;
-       this.queueBin = queueBin;
-       this.engineHeader = engineHeader;
-       this.script = script;
-       this.workDir = workDir
-    }
-}*/
-
-/*abstract class _jobObject extends events.EventEmitter {
-
-}*/
-
-//interface symbolStreamTuple 
 
 export class jobInputs extends events.EventEmitter {
     streams:cType.streamMap = {};
@@ -150,10 +132,18 @@ export class jobInputs extends events.EventEmitter {
     hashes:cType.stringMap = {}
 
     hashable:boolean=false;
-    /* Constructor can receive a map w/ two types of value*/
-    constructor(data:{}|any[], skip?:boolean){
+    /* Constructor can receive a map w/ two types of value
+        Should be SYNC-like
+    */
+    constructor(data?:{}|any[]/*, skip?:boolean*/){
         super();
+
         let safeNameInput:boolean = true;
+        
+        if(!data)
+            return;
+        
+        
         let buffer:any = {};
         // Coherce array in litteral, autogenerate keys
         if (data.constructor === Array) {
@@ -169,7 +159,7 @@ export class jobInputs extends events.EventEmitter {
         let nTotal = Object.keys(buffer).length;
         logger.debug(`nTotal ${nTotal} supplied job inputs`);
 
-
+        let self = this;
         for (let key in data) {
             if( isStream(buffer[key]) )
                 this.streams[key] = <streamLib.Readable>buffer[key];
@@ -182,12 +172,12 @@ export class jobInputs extends events.EventEmitter {
                     this.streams[k] = fs.createReadStream(datum);
                     logger.debug(`${buffer[key]} is a file, stream assigned to ${k}`);
                 } catch(e) {
-                    logger.debug(`${key} is not a file`);
+                    logger.warn(`Provided input named ${key} is not a file, assuming a string`);                    
                   // Handle error
                     if(e.code == 'ENOENT'){
                     //no such file or directory
                     //do something
-                    }else {
+                    } else {
                     //do something else
                     }
                     this.streams[key] = new streamLib.Readable();
@@ -196,8 +186,19 @@ export class jobInputs extends events.EventEmitter {
                     this.streams[key].push(null);
                }
             }
-
+            this.streams[key].on('error', (e) => {
+                self.emit('streamReadError', e);
+            });
         }
+        
+    }
+    // Access from client side to wrap in socketIO
+    getStreamsMap():cType.streamMap|undefined {
+        if (this.hashable) {
+            logger.warn('All streams were consumed');
+            return undefined;
+        }  
+        return this.streams;
     }
     hash():cType.stringMap|undefined {
         if (!this.hashable) {
@@ -265,78 +266,6 @@ export class jobInputs extends events.EventEmitter {
 
 
 
-/*
-    We change this function so that newLitt is 
-    a map of streams
-    instead of th previous map of strings
-    piping file content in hash
-    https://stackoverflow.com/questions/18658612/obtaining-the-hash-of-a-file-using-the-stream-capabilities-of-crypto-module-ie
-    */
-
-export function inputsMapper(inputLitt:any, skip?:boolean) : events.EventEmitter {
-    let newLitt : cType.streamMap = {};
-    let emitter = new events.EventEmitter();
-    if (skip) {
-        setTimeout(()=>{emitter.emit('mapped', inputLitt)}, 5);
-        logger.debug("skipping input Mapper")
-        return emitter;
-    }
-
-    let nTotal = Object.keys(inputLitt).length;
-  //  if (debugMode) {
-        logger.debug(`nTotal ${nTotal} inputLitt`);
-        //console.log("nTotal = " + nTotal + ", inputLitt : ");
-        logger.debug(`${inputLitt}`);
-        //console.dir(inputLitt);
-   // }
-
-    function spit(inputValue : string|streamLib.Readable, symbol : string) {
-        //if (debugMode)
-        logger.debug(`Current Symbol ${symbol}`);
-        let type : string|null = null;
-        let stream : streamLib.Readable;// = new streamLib.Readable();
-        let t:boolean = true;
-        if (util.isString(inputValue)) { // Input is a string
-            if (fs.existsSync(inputValue)) { // Input is a path to file, create a stream from its content
-                stream = fs.createReadStream(inputValue); // if var using stream == null
-            } else { // A simple string to wrap in a stream
-                stream = new streamLib.Readable();
-                stream.push(inputValue);
-                stream.push(null);
-            }
-        } else { // Input value is already a stream
-            if (!isStream(inputValue)) {
-                logger.error('unrecognized value while expecting stream')
-            }
-            type = 'stream';
-            //stream = new streamLib.Readable();
-            stream = <streamLib.Readable>inputValue;
-        }
-        stream.on('data',function(d){
-            //newLitt[symbol] += d.toString();
-        })
-        .on('end', function(){
-            nTotal--;
-            if (type === 'stream') {
-                // create a new stream to recycle inputValue, so it can be readded as much as necessary
-                let recycleStream = new streamLib.Readable();
-                recycleStream.push(newLitt[symbol]);
-                recycleStream.push(null);
-                inputLitt[symbol] = recycleStream;
-            }
-            if (nTotal == 0) emitter.emit('mapped', newLitt);
-        });
-
-    };
-
-    for (let symbol in inputLitt) {
-        //newLitt[symbol] = '';
-        let inputValue = inputLitt[symbol];
-        spit(inputValue, symbol);
-    }
-    return emitter;
-}
-
 
 
 
@@ -350,18 +279,18 @@ export function inputsMapper(inputLitt:any, skip?:boolean) : events.EventEmitter
     job.emit('scriptError')
 */
 
-export class jobProxy extends events.EventEmitter {
+export class jobProxy extends events.EventEmitter implements jobOptProxyInterface{
     id : string;
 
     script? :string|streamLib.Readable;
     cmd? :string;
     exportVar? : cType.stringMap = {};
-    inputs? :string [];
+    inputs :jobInputs;
     jobProfile? : string;
     tagTask? :string;
     namespace? :string;
     modules? :string [] = [];
-
+    socket?:any;
     constructor(jobOpt:any, uuid?:string){ // Quick and dirty typing
         super();
         this.id = uuid ? uuid : uuidv4();
@@ -376,10 +305,29 @@ export class jobProxy extends events.EventEmitter {
             this.tagTask = jobOpt.tagTask;
         if ('namespace' in jobOpt)
             this.namespace = jobOpt.namespace;
-        if ('inputs' in jobOpt)
-            this.inputs = jobOpt.inputs;
-    }
+        if ('socket' in jobOpt)
+            this.socket = jobOpt.socket;
 
+        this.inputs = new jobInputs(jobOpt.inputs);
+    }
+    // 2ways Forwarding event to consumer or publicMS 
+    // WARNING wont work with streams
+    emit(eName:string|symbol, ...args: any[]):boolean {
+        logger.warn(`TITI ${eName}`);
+        // We call the original emitter anyhow
+        super.emit.apply(this, args);
+        return true;
+        // if a socket is registred we serialize objects if needed, then
+        // pass it to socket
+       /* let _args = args.map((e)=>{
+            return JSON.stringify(e);
+        })
+        //If it exists, JSON.stringify calls the object's toJSON method and then serializes the object that function returns. If toJSON does not exist, stringify simply serializes the object. –
+        if (this.socket)
+        //this.socket.emit(eName,)
+            this.socket.emit.apply(this, _args);
+        return false;*/
+    }
 }
 
 
@@ -475,7 +423,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
             });
         });
     }
-
+    // Rewrite This w/ jobInputObject calls
     getSerialIdentity () : jobSerialInterface {
         let serial : jobSerialInterface = {
             cmd : this.cmd,
@@ -484,7 +432,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
             modules : this.modules,
             tagTask : this.tagTask,
             scriptHash : '',
-            inputHash : {}
+            inputHash : this.inputs.hash()
         }
         let content:string = '';
         if(this.script) {
@@ -497,6 +445,10 @@ export class jobObject extends jobProxy implements jobOptInterface  {
         serial.scriptHash = md5(content);
         //serial.inputHash = dir.files(this.workDir + '/input', {sync:true}).forEach((e)=>{
         let self = this;
+
+
+
+        /*
         if (this.inputDir){
 
             walkSync(this.inputDir).forEach((file:string) => {
@@ -507,11 +459,26 @@ export class jobObject extends jobProxy implements jobOptInterface  {
                             serial.inputHash[k] = md5(content);
                     }
                 });
-        }
+        }*/
+
+
          return serial;
     }
-
+    
     setInput() : void {
+        if (!this.inputs) {
+            this.emit("inputSet");
+            return;
+        }
+        let self = this;
+        this.inputs.write(this.inputDir)
+        .on('OK', ()=> {logger.warn("Coucou");
+        self.emit('inputSet');
+        });
+        
+    }
+
+    _setInput() : void {
         // Following two conditions are not async
         if (!this.inputs) {
             this.emit("inputSet");
@@ -790,3 +757,78 @@ function walkSync(dir:string, fileList:string[] = []) : string[]{
 
 
 
+
+
+
+
+/*
+    We change this function so that newLitt is 
+    a map of streams
+    instead of th previous map of strings
+    piping file content in hash
+    https://stackoverflow.com/questions/18658612/obtaining-the-hash-of-a-file-using-the-stream-capabilities-of-crypto-module-ie
+    */
+
+   export function inputsMapper(inputLitt:any, skip?:boolean) : events.EventEmitter {
+    let newLitt : cType.streamMap = {};
+    let emitter = new events.EventEmitter();
+    if (skip) {
+        setTimeout(()=>{emitter.emit('mapped', inputLitt)}, 5);
+        logger.debug("skipping input Mapper")
+        return emitter;
+    }
+
+    let nTotal = Object.keys(inputLitt).length;
+  //  if (debugMode) {
+        logger.debug(`nTotal ${nTotal} inputLitt`);
+        //console.log("nTotal = " + nTotal + ", inputLitt : ");
+        logger.debug(`${inputLitt}`);
+        //console.dir(inputLitt);
+   // }
+
+    function spit(inputValue : string|streamLib.Readable, symbol : string) {
+        //if (debugMode)
+        logger.debug(`Current Symbol ${symbol}`);
+        let type : string|null = null;
+        let stream : streamLib.Readable;// = new streamLib.Readable();
+        let t:boolean = true;
+        if (util.isString(inputValue)) { // Input is a string
+            if (fs.existsSync(inputValue)) { // Input is a path to file, create a stream from its content
+                stream = fs.createReadStream(inputValue); // if var using stream == null
+            } else { // A simple string to wrap in a stream
+                stream = new streamLib.Readable();
+                stream.push(inputValue);
+                stream.push(null);
+            }
+        } else { // Input value is already a stream
+            if (!isStream(inputValue)) {
+                logger.error('unrecognized value while expecting stream')
+            }
+            type = 'stream';
+            //stream = new streamLib.Readable();
+            stream = <streamLib.Readable>inputValue;
+        }
+        stream.on('data',function(d){
+            //newLitt[symbol] += d.toString();
+        })
+        .on('end', function(){
+            nTotal--;
+            if (type === 'stream') {
+                // create a new stream to recycle inputValue, so it can be readded as much as necessary
+                let recycleStream = new streamLib.Readable();
+                recycleStream.push(newLitt[symbol]);
+                recycleStream.push(null);
+                inputLitt[symbol] = recycleStream;
+            }
+            if (nTotal == 0) emitter.emit('mapped', newLitt);
+        });
+
+    };
+
+    for (let symbol in inputLitt) {
+        //newLitt[symbol] = '';
+        let inputValue = inputLitt[symbol];
+        spit(inputValue, symbol);
+    }
+    return emitter;
+}

@@ -332,7 +332,7 @@ function _checkJobBean(obj:any):boolean{
     return true;
 }
 
-// New job packet arrived on MS socket
+// New job packet arrived on MS socket, 1st arg is streamMap, 2nd the socket
 function pushMS(data:any) {
     logger.info(`newJob Packet arrived w/ ${util.format(data)}`);
     if(jobLib.isJobOptProxy(data)) {

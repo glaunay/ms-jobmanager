@@ -12,7 +12,7 @@ let util = require('util');
 //const socket = io('http://localhost');
 
 let socket;
-
+let jobsArray = [];
 /*
     establish socket io connection with job-manager MS (via job-manager-server implementation)
     raise the "ready";
@@ -70,7 +70,7 @@ export function push(data) {
 
     logger.debug(`Passing following jobOpt to jobProxy constructor\n${util.format(jobOpt)}`);
     let job = new jobLib.jobProxy(jobOpt);
-
+    jobsArray[job.id] = job;
 
     // Building streams
     jobOpt = buildStreams(jobOpt, job);
@@ -81,14 +81,50 @@ export function push(data) {
     for (let inputEvent in jobOpt.inputs)
         ss(socket, {}).on(inputEvent, (stream)=>{ jobOpt.inputs[inputEvent].pipe(stream);});
     logger.debug('emiting newJobSocket');
+    
+   
     socket.emit('newJobSocket', data);
+
+
+
+    // Registering event
+
+    socket.on('jobStart',(data)=>{
+        console.log('OUHOUH');
+        console.log(`${util.format(data)}`);
+    });
 
     return job;
 }
 
+function buildStreams(data,job){
 
-// Async stream build  async.parrallel
-function buildStreams(data, job) {
+    let jobInput = new jobLib.jobInputs(data.inputs);
+    // Register error here at stream creation fail
+    let sMap = {
+        script : fs.createReadStream(data.script),
+        inputs : {}
+    };
+    sMap.script.on('error', function(){       
+        let msg = `Failed to create read stream from ${data.script}`;
+        job.emit('scriptError', msg);
+    });
+
+    jobInput.on('streamReadError',(e)=>{
+        job.emit('inputError', e);
+    })
+
+    sMap.inputs = jobInput.getStreamsMap();
+
+    data.script = sMap.script;
+    data.inputs = sMap.inputs;
+    /*logger.debug("steams buildt");
+    logger.debug(typeof(sMap.script));*/
+    return data;
+}
+
+// following is deprecated we try to use the jobInput object
+function _buildStreams(data, job) {
 
     let scriptSrcStream;
 
@@ -100,6 +136,9 @@ function buildStreams(data, job) {
         let msg = `Failed to create read stream from ${data.script}`;
         job.emit('scriptError', msg);
     });
+
+
+
 
     for(let inputSymbol in data.inputs) {
         let filePath = data.inputs[inputSymbol];   

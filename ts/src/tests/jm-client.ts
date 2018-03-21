@@ -1,8 +1,8 @@
 import jobManagerMS = require('../nativeJS/job-manager-client.js');
 import logger = require('../logger.js');
 /*
-    Prototype of a micro service subscribing to the jobManager Microservice.
-
+    Prototype of a Consumer Micro Service subscribing
+     to a Public JobManager Micro Service.
 */
 
 
@@ -11,6 +11,9 @@ let jobProxyOpt = {
     'inputs' : {
         'file' : '../data/file.txt',
         'file2' : '../data/file2.txt'
+    },
+    'exportVar' : {
+        'waitingTime' : '4'
     }
 }
 
