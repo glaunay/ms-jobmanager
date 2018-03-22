@@ -260,7 +260,7 @@ function jobWarden():void {
                         //jobTmp.obj.emitter = curr_job.obj.emitter; // keep same emitter reference
                         let tmpJob = jobsArray[key];
                         delete jobsArray[key];
-                        tmpJob.obj.emit('lostJob', 'The job "' + key + '" is not in the queue !', tmpJob.obj);
+                        tmpJob.obj.jEmit('lostJob', 'The job "' + key + '" is not in the queue !', tmpJob.obj);
                     }
                 } else {
                     if (curr_job.obj.MIA_jokers < 3)
@@ -399,6 +399,8 @@ export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, 
             jobTemplate.tagTask = jobOpt.tagTask;
         if ('ttl' in jobOpt)
             jobTemplate.ttl = jobOpt.ttl;
+        if ('socket' in jobOpt)
+            jobTemplate.socket = jobOpt.socket;
 
         
 
@@ -492,7 +494,7 @@ function _parseMessage(msg:string) {
     else
         logger.error(`unrecognized status at ${uStatus}`);
     if (uStatus === 'START')
-        jobsArray[jid].obj.emit('jobStart', jobsArray[jid].obj);
+        jobsArray[jid].obj.jEmit('jobStart', jobsArray[jid].obj);
     else if (uStatus === "FINISHED")
         _pull(jid); //TO DO
      //logger.error(`TO DO`);
@@ -575,11 +577,11 @@ function _storeAndEmit(jid:string, status?:string) {
     } else {
         if(!status) {
             //warehouse.store(jobObj);
-            jobObj.emit("completed",
+            jobObj.jEmit("completed",
                 stdout, stderr, jobObj
             );
         } else {
-            jobObj.emit("jobError",
+            jobObj.jEmit("jobError",
                 stdout, stderr, jobObj
             );
         }

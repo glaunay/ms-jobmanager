@@ -90,7 +90,7 @@ export function push(data) {
     // Registering event
 
     socket.on('jobStart',(data)=>{
-        console.log('OUHOUH');
+        console.log('received jobStart');
         console.log(`${util.format(data)}`);
     });
 

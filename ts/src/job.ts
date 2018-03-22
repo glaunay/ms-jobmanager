@@ -305,32 +305,39 @@ export class jobProxy extends events.EventEmitter implements jobOptProxyInterfac
             this.tagTask = jobOpt.tagTask;
         if ('namespace' in jobOpt)
             this.namespace = jobOpt.namespace;
-        if ('socket' in jobOpt)
+        if ('socket' in jobOpt) {
+            logger.error('YYYYYYYY');
             this.socket = jobOpt.socket;
-
+        }
         this.inputs = new jobInputs(jobOpt.inputs);
     }
     // 2ways Forwarding event to consumer or publicMS 
     // WARNING wont work with streams
-    emit(eName:string|symbol, ...args: any[]):boolean {
-        logger.warn(`TITI ${eName}`);
+    jEmit(eName:string|symbol, ...args: any[]):boolean {
+        logger.warn(`jEmit(this) ${eName}`);
         // We call the original emitter anyhow
-        super.emit.apply(this, args);
-        return true;
+        logger.debug(`${eName} --> ${util.format(args)}`);
+        //this.emit.apply(this, eName, args);
+        //this.emit.apply(this, [eName, ...args])
+        this.emit(eName, ...args);
+        //return true;
         // if a socket is registred we serialize objects if needed, then
         // pass it to socket
-       /* let _args = args.map((e)=>{
-            return JSON.stringify(e);
-        })
         //If it exists, JSON.stringify calls the object's toJSON method and then serializes the object that function returns. If toJSON does not exist, stringify simply serializes the object. –
-        if (this.socket)
+        if (this.socket) {
+            logger.warn(`jEmitToScket ${eName}`);
+            let _args = args.map((e)=>{
+                return JSON.stringify(e); // Primitive OR 
+            });
+            
+        
         //this.socket.emit(eName,)
-            this.socket.emit.apply(this, _args);
-        return false;*/
+            logger.warn(`socket emiting event ${eName}`)
+            this.socket.emit(eName, ..._args);
+        }
+        return true;
     }
 }
-
-
 
 export class jobObject extends jobProxy implements jobOptInterface  {
    
@@ -399,6 +406,10 @@ export class jobObject extends jobProxy implements jobOptInterface  {
     /*
 
     */
+   toJSON():jobSerialInterface{
+       
+    return this.getSerialIdentity ();
+   }
     start () :void {
 
         let self = this;
@@ -424,6 +435,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
         });
     }
     // Rewrite This w/ jobInputObject calls
+    // DANGER script HASH not possible on string > 250MB
     getSerialIdentity () : jobSerialInterface {
         let serial : jobSerialInterface = {
             cmd : this.cmd,
@@ -444,7 +456,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
         }
         serial.scriptHash = md5(content);
         //serial.inputHash = dir.files(this.workDir + '/input', {sync:true}).forEach((e)=>{
-        let self = this;
+        //let self = this;
 
 
 
@@ -467,13 +479,13 @@ export class jobObject extends jobProxy implements jobOptInterface  {
     
     setInput() : void {
         if (!this.inputs) {
-            this.emit("inputSet");
+            this.jEmit("inputSet");
             return;
         }
         let self = this;
         this.inputs.write(this.inputDir)
         .on('OK', ()=> {logger.warn("Coucou");
-        self.emit('inputSet');
+        self.jEmit('inputSet');
         });
         
     }
@@ -481,13 +493,13 @@ export class jobObject extends jobProxy implements jobOptInterface  {
     _setInput() : void {
         // Following two conditions are not async
         if (!this.inputs) {
-            this.emit("inputSet");
+            this.jEmit("inputSet");
             return;
         }
 
         let totalSet = Object.keys(this.inputs).length;
         if (totalSet == 0) {
-            this.emit("inputSet");
+            this.jEmit("inputSet");
             return;
         }
         // console.log("Setting up");
@@ -726,16 +738,16 @@ function _copyScript(job : jobObject, fname : string, emitter : events.EventEmit
     else
         src = fs.createReadStream(<string>job.script);
     src.on("error", function(err) {
-        job.emit('scriptReadError', err, job);
+        job.jEmit('scriptReadError', err, job);
     });
     var wr = fs.createWriteStream(fname);
     wr.on("error", function(err) {
-        job.emit('scriptWriteError', err, job);
+        job.jEmit('scriptWriteError', err, job);
     });
     wr.on("close", function() {
         fs.chmod(fname, '777', function(err) {
             if (err) {
-                job.emit('scriptSetPermissionError', err, job);
+                job.jEmit('scriptSetPermissionError', err, job);
             } else {
                 emitter.emit('scriptReady' /*, string*/ );
             }
