@@ -4,6 +4,7 @@ let HTTP = require('http');
 let jobLib = require('../job.js');
 let ss = require('socket.io-stream');
 let logger = require('winston');
+let util = require('util');
 //import ss = require('./node_modules/socket.io-stream/socket.io-stream.js');
 
 //import comType = require('./job-manager-comTypes.js');
@@ -53,7 +54,7 @@ export function listen(port) {
     return evt;
 }
 
-/*  
+/*  NO NEED
     Sending data back to the client // propagating event to the client
     //{
         type : event
@@ -62,16 +63,17 @@ export function listen(port) {
     data element type can be scalar or stream, or do we ducktype ?
 
 */
-export function socketPull(opt){
-    let packet = {
-        type:'',
-        data:{}
-    };
-    logger.debug("socket pulling");
-    
-    if( opt.hasOwnProperty('event') ) {
-
-    }
-
-
+export function socketPull(stdout, stderr, jobObject){
+    logger.debug("socket job pulling");
+    logger.debug(`${util.format(stdout)}`);
+    ss(jobObject.socket).on(`${jobObject.id}:stdout`, function(stream) {
+        //jobObject.stdout().pipe(stream);
+        looger.debug("slurp");
+        stdout.pipe(stream);
+    });
+    ss(jobObject.socket).on(`${jobObject.id}:stderr`, function(stream) {
+        //jobObject.stderr().pipe(stream);
+        stderr.pipe(stream);
+    });
+    jobObject.socket.emit('completed', JSON.stringify(jobObject));
 }

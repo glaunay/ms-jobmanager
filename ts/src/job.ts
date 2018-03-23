@@ -23,7 +23,7 @@ import engineLib = require('./lib/engine/index.js');
 import cType = require('./commonTypes.js');
 import { dummyEngine } from './lib/engine/index.js';
 
-
+import {socketPull} from './nativeJS/job-manager-server';
 import crypto = require('crypto');
 
 
@@ -117,6 +117,7 @@ export function isJobOptProxy(data: any): data is jobOptProxyInterface {
 
 
 export interface jobSerialInterface {
+    id : string,
     cmd? :string,
     script? :string,
     exportVar? :cType.stringMap,
@@ -323,16 +324,21 @@ export class jobProxy extends events.EventEmitter implements jobOptProxyInterfac
         //return true;
         // if a socket is registred we serialize objects if needed, then
         // pass it to socket
-        //If it exists, JSON.stringify calls the object's toJSON method and then serializes the object that function returns. If toJSON does not exist, stringify simply serializes the object. –
+        //If it exists, 
+        // arguments are tricky (ie: streams), we socketPull
+        // otherwise, we JSON.stringify arguments and emit them on socket
         if (this.socket) {
-            logger.warn(`jEmitToScket ${eName}`);
+            logger.warn(`jEmitToSocket ${eName}`);
+            if(eName === 'completed') {
+                logger.debug(`SSP::\n${util.format(args)}`);
+                socketPull(...args);
+                return true;
+            }
+       // Easy to serialize content
             let _args = args.map((e)=>{
                 return JSON.stringify(e); // Primitive OR 
             });
-            
-        
-        //this.socket.emit(eName,)
-            logger.warn(`socket emiting event ${eName}`)
+            logger.warn(`socket emiting event ${eName}`);
             this.socket.emit(eName, ..._args);
         }
         return true;
@@ -438,6 +444,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
     // DANGER script HASH not possible on string > 250MB
     getSerialIdentity () : jobSerialInterface {
         let serial : jobSerialInterface = {
+            id : this.id,
             cmd : this.cmd,
             script : this.scriptFilePath,
             exportVar : this.exportVar,
@@ -601,6 +608,8 @@ export class jobObject extends jobProxy implements jobOptInterface  {
         let fNameStdout:string = this.fileOut ? this.fileOut : this.id + ".out";
         let fPath:string = this.workDir + '/' + fNameStdout;
         if (this._stdout){
+            logger.info("Found _stdout");
+            logger.info(`${util.format(this._stdout)}`);
              return this._stdout;
             /*
             logger.info("Found _stdout");

@@ -26,6 +26,14 @@ jobManagerMS.start({port:8080, TCPip:'localhost'})
         .on('inputError', (msg:string)=>{
             logger.logger.error(msg);
         });
+        job.on('completed', (stdout, stderr, jobRef)=>{
+            logger.logger.info("YESSS");
+            logger.logger.info(`(*-*)>>>`);
+            let stdoutStr = '';
+            stdout.on("data", (buffer:any) => {  let part = buffer.toString(); stdoutStr += part; });
+            stdout.on("end", () => {logger.logger.info(stdoutStr);});
+    
+        });
     });
 
 

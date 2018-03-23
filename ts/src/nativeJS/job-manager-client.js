@@ -6,17 +6,30 @@ let fs = require('fs');
 let ss = require('socket.io-stream');
 let logger = require('winston');
 let util = require('util');
-//import libStream = require("stream");
-
-//import comType = require('./job-manager-comTypes.js');
-//const socket = io('http://localhost');
 
 let socket;
-let jobsArray = [];
+let jobsPool = {};
 /*
     establish socket io connection with job-manager MS (via job-manager-server implementation)
     raise the "ready";
 */
+
+
+/* The socket forward the following event to the local jobProxyObject 
+ *          'lostJob', {Object}jobObject : any job not found in the process pool
+ *          'listError, {String}error) : the engine failed to list process along with error message
+ *          'folderSetPermissionError', {String}msg, {String}err, {Object}job
+ *          'scriptSetPermissionError', {String}err, {Object}job;
+ *          'scriptWriteError', {String}err, {Object}job
+ *          'scriptReadError', {String}err, {Object}job
+ *          'inputError', {String}err, {Object}job
+ *          'ready'
+ *          'submitted', {Object}job;
+ *          'completed', {Stream}stdio, {Stream}stderr, {Object}job // this event raising is delegated to jobManager
+ */
+
+
+
 export function start(opt){
     let evt = new EventEmitter();
     //socket.connect('http://localhost:8080');
@@ -27,9 +40,99 @@ export function start(opt){
         logger.debug(`manage to connect to jobmanager core microservice at ${url}`);
         evt.emit("ready");        
     });
+
+
+
+    bindForwardEvent(socket);
+
     return evt
 }
 
+/*
+ Returns reference to a live jobProxy object
+*/
+function getJobObject(uuid) {
+    logger.debug(`Looking in pool for id ${uuid}`);
+    if (jobsPool.hasOwnProperty(uuid))
+        return jobsPool[uuid];
+    logger.error(`job id ${uuid} is not found in local jobsPool`);
+    logger.error(`${util.format(Object.keys(jobsPool))}`);
+    return undefined;
+}
+
+function deleteJob(uuid) {
+    if (jobsPool.hasOwnProperty(uuid)) {
+        delete(jobsPool[uuid]);
+        return true;
+    }
+    logger.error(`Can't remove job, its id ${uuid} is not found in local jobsPool`);
+    return false;
+}
+
+function bindForwardEvent(socket) {
+    socket.on('lostJob', (jobSerial) => {
+        let jRef = getJobObject(jobSerial.id);
+        if (!jRef)
+            return;
+
+        logger.error(`Following job not found in the process pool ${util.format(jRef)}`);
+        jRef.emit('lostJob', jRef);
+        deleteJob(jobSerial.id);
+    });
+  //  *          'listError, {String}error) : the engine failed to list process along with error message
+    
+    socket.on('folderSetPermissionError', (msg, err, jobSerial) => {
+        let jRef = getJobObject(jobSerial.id);
+        if (!jRef)
+            return;
+        jRef.emit('folderSetPermissionError', msg, err, jRef);
+        deleteJob(jobSerial.id);
+    });
+    
+    ['scriptSetPermissionError', 'scriptWriteError', 'scriptReadError', 'inputError'].forEach((eName)=>{ 
+        socket.on(eName, ( err, jobSerial) => {
+            let jRef = getJobObject(jobSerial.id);
+            if (!jRef)
+                return;
+            jRef.emit(eName, err, jRef);
+            deleteJob(jobSerial.id);
+        });
+    });
+
+    ['submitted', 'ready'].forEach((eName)=>{
+        socket.on(eName, (jobSerial) => {
+            let jRef = getJobObject(jobSerial.id);
+            if (!jRef)
+                return;
+            jRef.emit('ready');
+        });
+    });
+   
+    socket.on('completed',pull);
+
+}
+
+function pull(_jobSerial) {  
+    let jobSerial = JSON.parse(_jobSerial);
+    logger.debug(`ii : ${util.format(jobSerial)}`);
+    logger.debug(`${typeof(jobSerial)}`);
+    let jobObject = getJobObject(jobSerial.id);
+    if (!jobObject)
+        return;
+    logger.info('completed event on socket');
+    logger.info(`${util.format(jobObject)}`);
+    jobObject.stdout = ss.createStream();
+    jobObject.sterr = ss.createStream();
+ 
+    ss(socket).emit(`${jobObject.id}:stdout`, jobObject.stdout);
+    ss(socket).emit(`${jobObject.id}:stderr`, jobObject.stderr);
+
+    jobObject.emit('completed', jobObject.stdout, jobObject.stderr, jobObject);
+
+        /* raise following event
+         'completed', {Stream}stdio, {Stream}stderr, {Object}job // this event raising is delegated to jobManager
+         */
+}
 
 // test data refers to a list of file
 // We build a litteral with the same keys but with values that are streams instead of path to file
@@ -51,6 +154,7 @@ export function push(data) {
 
     //
     let jobOpt = {
+        id:undefined,
         script : undefined,
         cmd : undefined,
         modules : [],
@@ -70,7 +174,8 @@ export function push(data) {
 
     logger.debug(`Passing following jobOpt to jobProxy constructor\n${util.format(jobOpt)}`);
     let job = new jobLib.jobProxy(jobOpt);
-    jobsArray[job.id] = job;
+    data.id = job.id;
+    jobsPool[job.id] = job;
 
     // Building streams
     jobOpt = buildStreams(jobOpt, job);
@@ -80,7 +185,7 @@ export function push(data) {
     ss(socket, {}).on('script', (stream)=>{ jobOpt.script.pipe(stream); });
     for (let inputEvent in jobOpt.inputs)
         ss(socket, {}).on(inputEvent, (stream)=>{ jobOpt.inputs[inputEvent].pipe(stream);});
-    logger.debug('emiting newJobSocket');
+    logger.debug(`Emiting newJobSocket w/ data\n${util.format(data)}`);
     
    
     socket.emit('newJobSocket', data);
@@ -97,8 +202,9 @@ export function push(data) {
     return job;
 }
 
-function buildStreams(data,job){
+function buildStreams(data, job){
 
+    logger.debug(`${util.format(data)}`);
     let jobInput = new jobLib.jobInputs(data.inputs);
     // Register error here at stream creation fail
     let sMap = {

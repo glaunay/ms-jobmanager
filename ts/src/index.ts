@@ -357,6 +357,9 @@ export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, 
 
         logger.debug(`Following litteral was pushed \n ${util.format(jobOpt)}`);
         let jobID =  uuidv4();
+        if(jobOpt.hasOwnProperty('id'))
+            if(jobOpt.id)
+                jobID = jobOpt.id;
         let workDir : string;
 
         if (namespace) {
@@ -555,24 +558,25 @@ function _storeAndEmit(jid:string, status?:string) {
     /*force emulated to dump stdout/err*/
     if (jobObj.emulated) {
         async.parallel([function(callback) {
-                        var fOut = jobObj.workDir + '/' + jobObj.id + '.err';
-                        var errStream = fs.createWriteStream(fOut);
+                        let fOut = jobObj.workDir + '/' + jobObj.id + '.err';
+                        let errStream = fs.createWriteStream(fOut);
                         if (stderr)
                             stderr.pipe(errStream).on('close', function() {
                                 callback(undefined, fOut);
                         });
                     }, function(callback) {
-                        var fOut = jobObj.workDir + '/' + jobObj.id + '.out';
-                        var outStream = fs.createWriteStream(fOut);
+                        let fOut = jobObj.workDir + '/' + jobObj.id + '.out';
+                        let outStream = fs.createWriteStream(fOut);
                         if(stdout)
                             stdout.pipe(outStream).on('close', function() {
                             callback(undefined, fOut);
                         });
                     }], // Once all stream have been consumed, get filesnames
                     function(err:any,results:any) {
-                        var _stdout = fs.createReadStream(results[1]);
-                        var _stderr = fs.createReadStream(results[0]);
-                         jobObj.emit("completed", _stdout, _stderr, jobObj);
+                        logger.info(`OUHOUH ${results}`);
+                        let _stdout = fs.createReadStream(results[1]);
+                        let _stderr = fs.createReadStream(results[0]);
+                        jobObj.jEmit("completed", _stdout, _stderr, jobObj);
                     });
     } else {
         if(!status) {
