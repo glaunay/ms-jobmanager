@@ -63,17 +63,26 @@ export function listen(port) {
     data element type can be scalar or stream, or do we ducktype ?
 
 */
-export function socketPull(stdout, stderr, jobObject){
+export function socketPull(jobObject){
     logger.debug("socket job pulling");
-    logger.debug(`${util.format(stdout)}`);
+  //  logger.debug(`${util.format(stdout)}`);
+
+
     ss(jobObject.socket).on(`${jobObject.id}:stdout`, function(stream) {
         //jobObject.stdout().pipe(stream);
-        looger.debug("slurp");
-        stdout.pipe(stream);
+        logger.debug("pumping stdout");
+        jobObject.stdout().then((_stdout) => {
+            logger.warn(`stdoutStream expected ${util.format(_stdout)}`);
+            _stdout.pipe(stream);
+        });
     });
+    
     ss(jobObject.socket).on(`${jobObject.id}:stderr`, function(stream) {
-        //jobObject.stderr().pipe(stream);
-        stderr.pipe(stream);
+        logger.debug("pumping stderr");
+        jobObject.stderr().then((_stderr) => { 
+            logger.warn(`stderrStream expected ${util.format(_stderr)}`);
+            _stderr.pipe(stream);
+        });
     });
     jobObject.socket.emit('completed', JSON.stringify(jobObject));
 }

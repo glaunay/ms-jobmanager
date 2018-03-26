@@ -122,7 +122,7 @@ function pull(_jobSerial) {
     logger.info('completed event on socket');
     logger.info(`${util.format(jobObject)}`);
     jobObject.stdout = ss.createStream();
-    jobObject.sterr = ss.createStream();
+    jobObject.stderr = ss.createStream();
  
     ss(socket).emit(`${jobObject.id}:stdout`, jobObject.stdout);
     ss(socket).emit(`${jobObject.id}:stderr`, jobObject.stderr);

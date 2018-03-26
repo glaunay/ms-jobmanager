@@ -510,21 +510,19 @@ function _parseMessage(msg:string) {
 
 */
 
-function _pull(jid:string) {
+function _pull(jid:string):void {
 
     console.log("Pulling " + jid);
     let jRef:jobWrapper = jobsArray[jid];
     //console.dir(jobsArray[jid]);
 
-    if(jRef.obj.stderr()) {
-        let streamError = <streamLib.Readable>jRef.obj.stderr();
+    jRef.obj.stderr().then((streamError) => {     
         let stderrString:string|null = null;
         streamError.on('data', function (datum) {
             stderrString = stderrString ? stderrString + datum.toString() : datum.toString();
         })
-        .on('end', function () {
+        .on('end', function () {           
             if(!stderrString) { _storeAndEmit(jid); return; }
-
             logger.warn(`Job ${jid} delivered a non empty stderr stream\n${stderrString}`);
             jRef.obj.ERR_jokers--;
             if (jRef.obj.ERR_jokers > 0){
@@ -536,10 +534,7 @@ function _pull(jid:string) {
                 _storeAndEmit(jid, 'error');
             }
         });
-    } else {
-    // At this point we store and unreference the job and emit as completed
-        _storeAndEmit(jid);
-    }
+    });
 };
 
 
@@ -547,38 +542,29 @@ function _pull(jid:string) {
  We treat error state emission / document it for calling scope
 */
 function _storeAndEmit(jid:string, status?:string) {
+
+    logger.warn("STORE & EMIT");
+
     let jRef:jobWrapper = jobsArray[jid];
 
     let jobObj:jobLib.jobObject = jRef.obj;
     delete jobsArray[jid];
-    let stdout = jobObj.stdout();
-    let stderr = jobObj.stderr();
+    
+    jobObj.jEmit("completed", jobObj);
+
+    warehouse.store(jobObj);
 
 
-    /*force emulated to dump stdout/err*/
-    if (jobObj.emulated) {
-        async.parallel([function(callback) {
-                        let fOut = jobObj.workDir + '/' + jobObj.id + '.err';
-                        let errStream = fs.createWriteStream(fOut);
-                        if (stderr)
-                            stderr.pipe(errStream).on('close', function() {
-                                callback(undefined, fOut);
-                        });
-                    }, function(callback) {
-                        let fOut = jobObj.workDir + '/' + jobObj.id + '.out';
-                        let outStream = fs.createWriteStream(fOut);
-                        if(stdout)
-                            stdout.pipe(outStream).on('close', function() {
-                            callback(undefined, fOut);
-                        });
-                    }], // Once all stream have been consumed, get filesnames
-                    function(err:any,results:any) {
-                        logger.info(`OUHOUH ${results}`);
-                        let _stdout = fs.createReadStream(results[1]);
-                        let _stderr = fs.createReadStream(results[0]);
-                        jobObj.jEmit("completed", _stdout, _stderr, jobObj);
-                    });
-    } else {
+ /*   Promise.all([jobObj.stdout(), jobObj.stderr()])
+    .then((streamArray) => {
+        logger.error(`stream Array \n${util.format(streamArray)}`);
+        logger.info("-----_storeAndEmitDump is success");
+        
+        jobObj.jEmit("completed", jobObj);
+    });
+   */ 
+  /*  } else {
+       
         if(!status) {
             //warehouse.store(jobObj);
             jobObj.jEmit("completed",
@@ -590,6 +576,8 @@ function _storeAndEmit(jid:string, status?:string) {
             );
         }
     }
+
+    */
 
 
 

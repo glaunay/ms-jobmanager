@@ -26,6 +26,7 @@ import { dummyEngine } from './lib/engine/index.js';
 import {socketPull} from './nativeJS/job-manager-server';
 import crypto = require('crypto');
 
+import childProc = require('child_process');
 
 /*
     job serialization includes
@@ -330,8 +331,8 @@ export class jobProxy extends events.EventEmitter implements jobOptProxyInterfac
         if (this.socket) {
             logger.warn(`jEmitToSocket ${eName}`);
             if(eName === 'completed') {
-                logger.debug(`SSP::\n${util.format(args)}`);
-                socketPull(...args);
+                //logger.debug(`SSP::\n${util.format(args)}`);
+                socketPull(...args);//eventName, jobObject
                 return true;
             }
        // Easy to serialize content
@@ -462,26 +463,8 @@ export class jobObject extends jobProxy implements jobOptInterface  {
             logger.error("serializing no cmd/script job object");
         }
         serial.scriptHash = md5(content);
-        //serial.inputHash = dir.files(this.workDir + '/input', {sync:true}).forEach((e)=>{
-        //let self = this;
-
-
-
-        /*
-        if (this.inputDir){
-
-            walkSync(this.inputDir).forEach((file:string) => {
-                    let content = fs.readFileSync(file).toString();
-                    if (content) {
-                        let k = path.basename(file);
-                        if (serial.inputHash)
-                            serial.inputHash[k] = md5(content);
-                    }
-                });
-        }*/
-
-
-         return serial;
+     
+        return serial;
     }
     
     setInput() : void {
@@ -497,60 +480,12 @@ export class jobObject extends jobProxy implements jobOptInterface  {
         
     }
 
-    _setInput() : void {
-        // Following two conditions are not async
-        if (!this.inputs) {
-            this.jEmit("inputSet");
-            return;
-        }
-
-        let totalSet = Object.keys(this.inputs).length;
-        if (totalSet == 0) {
-            this.jEmit("inputSet");
-            return;
-        }
-        // console.log("Setting up");
-        // console.dir(this.inputs);
-        // console.log("-----------------------------------------------------------------");
-        let stream = null;
-        let self = this;
-        logger.error('############################');
-        inputsMapper(this.inputs, this.fromConsumerMS).on('mapped', function(inputsAsStringLitt) {
-
-
-            // We NEED TO ASYNC PARRALLEL THIS FILES DUMP
-
-            let nTotal = Object.keys(inputsAsStringLitt).length;
-                for (let symbol in inputsAsStringLitt) {
-                    let srcContent = inputsAsStringLitt[symbol];
-                    let dumpFile = self.inputDir + '/' + symbol + '.inp';
-               // try {
-                    let target = fs.createWriteStream(dumpFile);
-                    logger.error("inputsMapper");
-                    logger.error(`${util.format(srcContent)}`);
-
-                    srcContent.pipe(target);
-                    /*if(self.fromConsumerMS) {
-                    }
-                    srcContent.pipe    
-                    fs.writeFileSync(dumpFile, srcContent);*/
-                //} catch (err) {
-                //    console.error(err);
-               // }
-                self.inputSymbols[symbol] = dumpFile;
-            }
-        // console.log("ISS");
-            self.emit("inputSet");
-        });
-        return;
-    }
     // Process argument to create the string which will be dumped to an sbatch file
     setUp() : void {
         let self = this;
         let customCmd = false;
         batchDumper(this).on('ready', function(string) {
             let fname = self.workDir + '/' + self.id + '.batch';
-        //if (self.emulated) fname = self.workDir + '/' + self.id + '.sh';
             fs.writeFile(fname, string, function(err) {
                 if (err) {
                     return console.log(err);
@@ -558,123 +493,67 @@ export class jobObject extends jobProxy implements jobOptInterface  {
                 jobIdentityFileWriter(self);
 
                 self.submit(fname);
-            /*if (self.emulated)
-                self.fork(fname);
-            else
-                self.submit(fname);*/
             });
         });
     }
-    // We try to submint always by spawn
+
     submit(fname:string):void {
         let self = this;
-       let submitArgArray = [fname];
+        let submitArgArray = [fname];
 
         logger.debug(`submitting w/, ${this.engine.submitBin} ${submitArgArray}`);
         logger.debug(`workdir : > ${this.workDir} <`);
 
-        let process = spawn(this.engine.submitBin, submitArgArray, {
-            'cwd': this.workDir
-        })
-        .on('exit', function() {
-           // self.emit('submitted', self);
-        }).on('error', (err) => {
-          logger.error('Failed to start subprocess.');
-        }).on('close', (code) => {
-            logger.debug(`exited with code ${code}`);
-        });
+        let child = childProc.spawn(this.engine.submitBin, [fname]
+        , {           
+            detached: true, 
+            //shell : true,
+            stdio: [ 'ignore', 'pipe', 'pipe' ] // ignore stdin, stdout / stderr set to pipe 
+        }); 
+        // and unref() somehow disentangles the child's event loop from the parent's: 
+        child.unref(); 
 
+        if(this.emulated) {
+            let fNameStdout:string = this.fileOut ? this.fileOut : this.id + ".out"; 
+            let streamOut = fs.createWriteStream(this.workDir + '/' + fNameStdout);
+            let fNameStderr:string = this.fileErr ? this.fileErr : this.id + ".err"; 
+            let streamErr = fs.createWriteStream(this.workDir + '/' + fNameStderr);
 
-        if (this.emulated) {
-            this._stdout = process.stdout;
-            this._stderr = process.stderr;
+            child.stdout.pipe(streamOut);
+            child.stderr.pipe(streamErr);
         }
-
-
-       // logger.error(`${util.format(process)}`);
     }
 
     resubmit():void  {
         let fname = this.workDir + '/' + this.id + '.batch';
-    /*if (this.emulated)
-        this.fork(fname);
-    else*/
+
         this.submit(fname);
     }
 
-    /* we delegate to jobmanager the async.parrallel  treatment of _stdout, _stderr*/
+    async stdout():Promise<streamLib.Readable>{
 
-    stdout():streamLib.Readable|null{
+        logger.info("JOB STDOUT METHOD");
+
         let fNameStdout:string = this.fileOut ? this.fileOut : this.id + ".out";
         let fPath:string = this.workDir + '/' + fNameStdout;
-        if (this._stdout){
-            logger.info("Found _stdout");
-            logger.info(`${util.format(this._stdout)}`);
-             return this._stdout;
-            /*
-            logger.info("Found _stdout");
-            let ws = fs.createWriteStream(fPath);
-            this._stdout.pipe(ws);
-            this._stdout = undefined;*/
-        }
-        //if (this.emulated) return this.stdio;
+        let stdoutStream:streamLib.Readable = await dumpAndWrap(fPath, this._stdout);
 
-
-        if (!fs.existsSync(fPath)) {
-            logger.debug(`cant find file ${fPath}, forcing synchronicity...`);
-        }
-        fs.readdirSync(this.workDir).forEach(function(fn) {
-                logger.debug(`ddirSync : ${fn}`);
-        });
-
-        if ( !fs.existsSync(fPath) ) {
-            logger.error("Output file error, Still cant open output file, returning empy stream");
-            let dummyStream:streamLib.Readable = new streamLib.Readable();
-            dummyStream.push(null);
-            return dummyStream;
-        }
-
-    let stream:streamLib.Readable = fs.createReadStream(fPath, {
-            'encoding': 'utf8'
-        })
-        .on('error', function(m) {
-            let d = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
-            logger.error(`[${d}] An error occured while creating read stream:  fPath\n
-m`);
-        });
-    //stream.on("open", function(){ console.log("stdout stream opened");});
-    //stream.on("end", function(){console.log('this is stdout END');});
-    return stream;
+        return stdoutStream;
     }
 
-    stderr():streamLib.Readable|null{
-        let fNameStderr = this.fileErr ? this.fileErr : this.id + ".err";
+    async stderr():Promise<streamLib.Readable>{
 
-        if (this._stderr){
-            return this._stderr;
-    /*      let ws = fs.createWriteStream(fNameStderr);
-            this._stderr.pipe(ws);
-            this._stderr = undefined;*/
-        }
+        logger.info("JOB STDERR METHOD");
 
+        let fNameStderr:string = this.fileErr ? this.fileErr : this.id + ".err";
+        let fPath:string = this.workDir + '/' + fNameStderr;
+        let stderrStream:streamLib.Readable = await dumpAndWrap(fPath, this._stderr);
 
-        let statErr:fs.Stats|undefined;
-        let bErr:boolean = true;
-        try { 
-            statErr = fs.statSync(this.workDir + '/' + fNameStderr);
-        } catch (err) {
-            bErr = false;
-        }
-        if (!bErr) return null;
-        statErr = <fs.Stats>statErr;
-        if (statErr.size === 0) {
-            return null;
-        }
-
-        let stream:streamLib.Readable = fs.createReadStream(this.workDir + '/' + fNameStderr);
-        return stream;
+        return stderrStream;
     }
 }
+
+
 
 function jobIdentityFileWriter(job : jobObject) :void {
     let serial = job.getSerialIdentity();
@@ -765,91 +644,53 @@ function _copyScript(job : jobObject, fname : string, emitter : events.EventEmit
     src.pipe(wr);
 }
 
-
-function walkSync(dir:string, fileList:string[] = []) : string[]{
-    //let fileList = [];
-    fs.readdirSync(dir).forEach((file) => {
-    fileList = fs.statSync(path.join(dir, file)).isDirectory()
-        ? walkSync(path.join(dir, file), fileList)
-        : fileList.concat(path.join(dir, file));
-    });
-    return fileList;
-}
-
-
-
-
-
-
-
 /*
-    We change this function so that newLitt is 
-    a map of streams
-    instead of th previous map of strings
-    piping file content in hash
-    https://stackoverflow.com/questions/18658612/obtaining-the-hash-of-a-file-using-the-stream-capabilities-of-crypto-module-ie
-    */
+    Path{String} => ReadableStream
+    Given a path we try to open file
+    if ok return stream
+    if not 
+        we try to pump from _stdio
+    return empty stream
+*/
+function dumpAndWrap(fName:string/*, localDir:string*/, sourceToDump?:streamLib.Readable):Promise<streamLib.Readable>{
+    let p = new Promise<streamLib.Readable>(function(resolve) {
 
-   export function inputsMapper(inputLitt:any, skip?:boolean) : events.EventEmitter {
-    let newLitt : cType.streamMap = {};
-    let emitter = new events.EventEmitter();
-    if (skip) {
-        setTimeout(()=>{emitter.emit('mapped', inputLitt)}, 5);
-        logger.debug("skipping input Mapper")
-        return emitter;
-    }
 
-    let nTotal = Object.keys(inputLitt).length;
-  //  if (debugMode) {
-        logger.debug(`nTotal ${nTotal} inputLitt`);
-        //console.log("nTotal = " + nTotal + ", inputLitt : ");
-        logger.debug(`${inputLitt}`);
-        //console.dir(inputLitt);
-   // }
+        fs.stat(fName,(err, stat)=>{
+            if(!err) {
+                if(stat.isFile()) {     
+                    logger.debug(`Found a file to wrap at ${fName}`);
+                    let stream:streamLib.Readable = fs.createReadStream(fName, {
+                        'encoding': 'utf8'
+                    });
+                    resolve(stream);
+                    return;
+                }
+                logger.error(`Should not be here:\n ${util.format(stat)}`);
+            } else {
+                logger.debug(`cant find file ${fName}`);
+                if(sourceToDump){
 
-    function spit(inputValue : string|streamLib.Readable, symbol : string) {
-        //if (debugMode)
-        logger.debug(`Current Symbol ${symbol}`);
-        let type : string|null = null;
-        let stream : streamLib.Readable;// = new streamLib.Readable();
-        let t:boolean = true;
-        if (util.isString(inputValue)) { // Input is a string
-            if (fs.existsSync(inputValue)) { // Input is a path to file, create a stream from its content
-                stream = fs.createReadStream(inputValue); // if var using stream == null
-            } else { // A simple string to wrap in a stream
-                stream = new streamLib.Readable();
-                stream.push(inputValue);
-                stream.push(null);
+                    logger.debug(`Found alternative source dumping it from \n ${util.format(sourceToDump)}`);
+                    let target = fs.createWriteStream(fName, {'flags': 'a'});
+                    sourceToDump.pipe(target).on('close', () =>{
+                    let stream:streamLib.Readable = fs.createReadStream(fName, {
+                        'encoding': 'utf8'
+                        });
+                        logger.debug(`should resolve with ${util.format(stream)}`);
+                        resolve(stream);
+                        return;
+                    });
+                } else {
+                    logger.error("Output file error, Still cant open output file, returning empy stream");
+                    let dummyStream:streamLib.Readable = new streamLib.Readable();
+                    dummyStream.push(null);
+                    resolve(dummyStream);
+                    return;
+                }
             }
-        } else { // Input value is already a stream
-            if (!isStream(inputValue)) {
-                logger.error('unrecognized value while expecting stream')
-            }
-            type = 'stream';
-            //stream = new streamLib.Readable();
-            stream = <streamLib.Readable>inputValue;
-        }
-        stream.on('data',function(d){
-            //newLitt[symbol] += d.toString();
-        })
-        .on('end', function(){
-            nTotal--;
-            if (type === 'stream') {
-                // create a new stream to recycle inputValue, so it can be readded as much as necessary
-                let recycleStream = new streamLib.Readable();
-                recycleStream.push(newLitt[symbol]);
-                recycleStream.push(null);
-                inputLitt[symbol] = recycleStream;
-            }
-            if (nTotal == 0) emitter.emit('mapped', newLitt);
+
         });
-
-    };
-
-    for (let symbol in inputLitt) {
-        //newLitt[symbol] = '';
-        let inputValue = inputLitt[symbol];
-        spit(inputValue, symbol);
-    }
-    return emitter;
-}
+    });
+    return p;
+} 

@@ -30,9 +30,20 @@ jobManagerMS.start({port:8080, TCPip:'localhost'})
             logger.logger.info("YESSS");
             logger.logger.info(`(*-*)>>>`);
             let stdoutStr = '';
-            stdout.on("data", (buffer:any) => {  let part = buffer.toString(); stdoutStr += part; });
-            stdout.on("end", () => {logger.logger.info(stdoutStr);});
+            stdout.on("data", (buffer:any) => {
+                logger.logger.info('some data');
+                let part = buffer.toString(); 
+                stdoutStr += part;
+            });
+            stdout.on("end", () => {logger.logger.info('This is stdout :\n', stdoutStr);});
     
+            let sterrStr = '';
+            stderr.on("data", (buffer:any) => {
+                logger.logger.info('some data');
+                let part = buffer.toString(); 
+                sterrStr += part;
+            });
+            stderr.on("end", () => {logger.logger.info('This is stderr :\n', sterrStr);});
         });
     });
 
