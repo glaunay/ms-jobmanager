@@ -11,7 +11,6 @@ import md5 = require('md5');
 import streamLib = require('stream');
 //import spawn = require('spawn');
 import logger = require('winston');
-import async = require('async');
 
 import { spawn } from 'child_process';
 
@@ -384,6 +383,9 @@ export class jobObject extends jobProxy implements jobOptInterface  {
     _stderr? :streamLib.Readable;
 
 
+    isShimmeringOf?:jobObject;
+    hasShimmerings:jobObject[] = [];
+
     constructor( jobOpt :jobOptInterface, uuid? :string ){
         super(jobOpt, uuid);
 
@@ -415,7 +417,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
     */
    toJSON():jobSerialInterface{
        
-    return this.getSerialIdentity ();
+    return this.getSerialIdentity();
    }
     start () :void {
 
@@ -433,10 +435,6 @@ export class jobObject extends jobProxy implements jobOptInterface  {
                     return;
                 }
                 self.emit('workspaceCreated');
-
-                self.on('inputSet', function() { // Binding callback for setInput termination
-                    self.setUp();
-                });
                 self.setInput(); //ASYNC or SYNC, Hence the call after the callback binding
             });
         });
@@ -481,7 +479,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
     }
 
     // Process argument to create the string which will be dumped to an sbatch file
-    setUp() : void {
+    launch() : void {
         let self = this;
         let customCmd = false;
         batchDumper(this).on('ready', function(string) {

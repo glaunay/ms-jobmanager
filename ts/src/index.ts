@@ -6,7 +6,6 @@ import util = require('util');
 import uuidv4 = require('uuid/v4');
 import streamLib = require('stream');
 //import date = require('date-and-time');
-import async = require('async');
 import logger = require('winston');
 
 import jobLib = require('./job');
@@ -16,6 +15,8 @@ export {engineSpecs} from './lib/engine/index.js';
 import cType = require('./commonTypes.js');
 
 import jmServer = require('./nativeJS/job-manager-server.js');
+
+import liveMemory = require('./lib/pool.js');
 
 //let search:warehouse.warehousSearchInterface;
 
@@ -42,7 +43,7 @@ let wardenPulse :number = 5000;
 let warden : NodeJS.Timer;
 var cacheDir :string|null = null;
 
-let jobsArray : {[s:string] : jobWrapper } = {};
+
 
 
 let eventEmitter : events.EventEmitter = new events.EventEmitter();
@@ -86,11 +87,7 @@ interface BinariesSpec {
    queueBin : string;
    submitBin : string;
 }
-interface jobWrapper {
-    'obj': jobLib.jobObject,
-    'status': jobLib.jobStatus,
-    'nCycle': number
-};
+
 
 
 let schedulerID = uuidv4();
@@ -163,8 +160,7 @@ function _openSocket(port:number) : events.EventEmitter {
 }
 
 function _pulse() {
-    let c = 0;
-    for (let k in jobsArray) c++;
+    let c:number = liveMemory.size();
     if (c === 0) {
         if (exhaustBool) {
             eventEmitter.emit("exhausted");
@@ -177,14 +173,14 @@ export function start(opt:jobManagerSpecs):events.EventEmitter {
     logger.debug(`${util.format(opt)}`);
 
     if (isStarted) {
-        let t:number = setTimeout(()=>{ eventEmitter.emit("ready"); });
+        let t:NodeJS.Timer = setTimeout(()=>{ eventEmitter.emit("ready"); }, 50);
         return eventEmitter;
     }
 
     if (!isSpecs(opt)) {
         let msg:string = `Options required to start manager : \"cacheDir\", \"tcp\", \"port\"\n
 ${util.format(opt)}`;
-        let t:number = setTimeout(()=>{ eventEmitter.emit("startupError", msg); });
+        let t:NodeJS.Timer = setTimeout(()=>{ eventEmitter.emit("startupError", msg); },50);
         return eventEmitter;
     }
 
@@ -246,29 +242,25 @@ ${util.format(opt)}`;
 function jobWarden():void {
     engine.list().on('data', function(d:engineLib.engineListData) {
         logger.silly(`${util.format(d)}`);
-        for (let key in jobsArray) {
-            let curr_job = jobsArray[key];
-            if (curr_job.status === "CREATED") {
-                continue;
-            }
-
-            if (d.nameUUID.indexOf(key) === -1) { // if key is not found in listed jobs
-                curr_job.obj.MIA_jokers -= 1;
-                logger.warn('The job "' + key + '" missing from queue! Jokers left is ' + curr_job.obj.MIA_jokers);
-                    if (curr_job.obj.MIA_jokers === 0) {
+        for (let job of liveMemory.startedJobiterator()) {
+            let jobSel = { jobObject : job };
+            if (d.nameUUID.indexOf(job.id) === -1) { // if key is not found in listed jobs
+                job.MIA_jokers -= 1;
+                logger.warn(`The job ${job.id} missing from queue! Jokers left is ${job.MIA_jokers}`);
+                if (job.MIA_jokers === 0) {
                         //var jobTmp = clone(curr_job); // deepcopy of the disappeared job
                         //jobTmp.obj.emitter = curr_job.obj.emitter; // keep same emitter reference
-                        let tmpJob = jobsArray[key];
-                        delete jobsArray[key];
-                        tmpJob.obj.jEmit('lostJob', 'The job "' + key + '" is not in the queue !', tmpJob.obj);
-                    }
-                } else {
-                    if (curr_job.obj.MIA_jokers < 3)
-                        logger.info('Job "' + key + '" found BACK ! Jokers count restored');
+                    let tmpJob = job;
+                    liveMemory.removeJob(jobSel);
+                    tmpJob.jEmit('lostJob', `The job ${job.id} is not in the queue !`, tmpJob);
+                }
+            } else {
+                if (job.MIA_jokers < 3)
+                    logger.info(`Job ${job.id} found BACK ! Jokers count restored`);
 
-                    curr_job.obj.MIA_jokers = 3;
-                    curr_job.nCycle += 1;
-                    ttlTest(curr_job);
+                    job.MIA_jokers = 3;
+                    liveMemory.setCycle(jobSel,'++');
+                    ttlTest(job);
                 }
             }
             //emitter.emit('');
@@ -280,27 +272,22 @@ function jobWarden():void {
 
 // WARNING : MG and GL 05.09.2017 : memory leak :
 // the delete at the end of the function is ok but another reference to the job can still exists [***]
-function ttlTest(curr_job:jobWrapper) {
-    if (!curr_job.obj.ttl) return;
-    let job:jobLib.jobObject = curr_job.obj;
-    let jid = job.id;
-    var elaspedTime = wardenPulse * curr_job.nCycle;
-    logger.warn("Job is running for ~ " + elaspedTime + "ms [ttl is : " +  job.ttl  + "]");
-    if(elaspedTime > curr_job.obj.ttl) {
-        logger.error("TTL exceeded for Job " + jid + ", terminating it");
+function ttlTest(job:jobLib.jobObject) {
+    if (!job.ttl) return;
+    let jobSel = { jobObject : job }; 
+    let nCycle = liveMemory.getCycle(jobSel);
+    if (typeof nCycle === 'undefined') {
+        logger.error("TTL ncycle error");
+        return;
+    }
+    var elaspedTime = wardenPulse * nCycle;
+    logger.warn(`Job is running for ~ ${elaspedTime} ms [ttl is : ${job.ttl}"]`);
+    if(elaspedTime > job.ttl) {
+        logger.error(`TTL exceeded for Job ${job.id} terminating it`);
         engine.kill([job]).on('cleanExit', function(){
-            if(jid in jobsArray)
-                delete jobsArray[jid]; //  [***]
+            liveMemory.removeJob(jobSel);
         }); // Emiter is passed here if needed
     }
-}
-
-function _getCurrentJobList () {
-    let jobObjList:jobLib.jobObject[] = [];
-    for (let key in jobsArray) {
-        jobObjList.push(jobsArray[key].obj);
-    }
-    return jobObjList;
 }
 
 
@@ -355,111 +342,137 @@ function pushMS(data:any) {
 /* weak typing of the jobOpt  parameter */
 export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, namespace?: string) : jobLib.jobObject {
 
-        logger.debug(`Following litteral was pushed \n ${util.format(jobOpt)}`);
-        let jobID =  uuidv4();
-        if(jobOpt.hasOwnProperty('id'))
-            if(jobOpt.id)
-                jobID = jobOpt.id;
-        let workDir : string;
+    logger.debug(`Following litteral was pushed \n ${util.format(jobOpt)}`);
+    let jobID =  uuidv4();
+    if(jobOpt.hasOwnProperty('id'))
+        if(jobOpt.id)
+            jobID = jobOpt.id;
+    let workDir : string;
 
-        if (namespace) {
-            try { fs.mkdirSync(cacheDir + '/' + namespace); }
-            catch (err) {
-                if (err.code != 'EEXIST') {
-                    logger.error("Namespace " + cacheDir + '/' + namespace + ' already exists.');
-                    throw err;
-                }
+    if (namespace) {
+        try { fs.mkdirSync(cacheDir + '/' + namespace); }
+        catch (err) {
+            if (err.code != 'EEXIST') {
+                logger.error("Namespace " + cacheDir + '/' + namespace + ' already exists.');
+                throw err;
             }
-            workDir = cacheDir + '/' + namespace + '/' + jobID;
-        } else {
-            workDir = cacheDir + '/' + jobID;
         }
+        workDir = cacheDir + '/' + namespace + '/' + jobID;
+    } else {
+        workDir = cacheDir + '/' + jobID;
+    }
 
     /* Building a jobOptInterface litteral out of the jobOpt function parameter */
-        let jobTemplate : jobLib.jobOptInterface = {
+    let jobTemplate : jobLib.jobOptInterface = {
            // "engineHeader": engine.generateHeader(jobID, jobProfileString, workDir),
-            "engine" : engine,
-            "workDir": workDir,
-            "emulated": emulator ? true : false,
-            "adress": TCPip,
-            "port": TCPport,
+        "engine" : engine,
+        "workDir": workDir,
+        "emulated": emulator ? true : false,
+        "adress": TCPip,
+        "port": TCPport,
            // "submitBin": engine.submitBin(),
-        };
+    };
 
-        if('exportVar' in jobOpt)
-            jobTemplate.exportVar =  jobOpt.exportVar;
-        if('modules' in jobOpt )
-            jobTemplate.modules = jobOpt.modules;
-        if ('script' in jobOpt)
-            jobTemplate.script = jobOpt.script;
-        if ('cmd' in jobOpt)
-            jobTemplate.cmd = jobOpt.cmd;
-        if ('inputs' in jobOpt)
-            jobTemplate.inputs = jobOpt.inputs;
-        if ('modules' in jobOpt)
-            jobTemplate.modules = jobOpt.modules;
-         if ('tagTask' in jobOpt)
-            jobTemplate.tagTask = jobOpt.tagTask;
-        if ('ttl' in jobOpt)
-            jobTemplate.ttl = jobOpt.ttl;
-        if ('socket' in jobOpt)
-            jobTemplate.socket = jobOpt.socket;
+    if('exportVar' in jobOpt)
+        jobTemplate.exportVar =  jobOpt.exportVar;
+    if('modules' in jobOpt )
+        jobTemplate.modules = jobOpt.modules;
+    if ('script' in jobOpt)
+        jobTemplate.script = jobOpt.script;
+    if ('cmd' in jobOpt)
+        jobTemplate.cmd = jobOpt.cmd;
+    if ('inputs' in jobOpt)
+        jobTemplate.inputs = jobOpt.inputs;
+    if ('modules' in jobOpt)
+        jobTemplate.modules = jobOpt.modules;
+    if ('tagTask' in jobOpt)
+        jobTemplate.tagTask = jobOpt.tagTask;
+    if ('ttl' in jobOpt)
+        jobTemplate.ttl = jobOpt.ttl;
+    if ('socket' in jobOpt)
+        jobTemplate.socket = jobOpt.socket;
 
         
 
 
 
-        logger.debug(`Following jobTemplate was successfully buildt \n ${util.format(jobTemplate)}`);
-        let newJob = new jobLib.jobObject(jobTemplate, jobID);
+    logger.debug(`Following jobTemplate was successfully buildt \n ${util.format(jobTemplate)}`);
+    let newJob = new jobLib.jobObject(jobTemplate, jobID);
+    if('fromConsumerMS' in jobOpt)
+        newJob.fromConsumerMS = jobOpt.fromConsumerMS;
        
-
-
-        // This is a hack to skip inputsMapper call, in case data come from consumer, 
-        // all inputs are already well formated containers w/ readable streams
-        if('fromConsumerMS' in jobOpt)
-            newJob.fromConsumerMS = jobOpt.fromConsumerMS;
-
-        logger.debug(`Following jobObject was successfully buildt \n ${util.format(newJob)}`);
+                  // 3 outcomes
+          // newJob.launch // genuine start
+          // newJob.resurrect // load from wareHouse a complete job
+          // newJob.melt // replace newJob by an already running job
+          //                just copying client socket if fromConsumerMS 
+          //
         
-        let constraints = {}; //extractConstraints(jobTemplate);
-        lookup(jobTemplate, constraints)
+
+    logger.debug(`Following jobObject was successfully buildt \n ${util.format(newJob)}`);
+        
+
+    newJob.start();
+    liveMemory.addJob(newJob);
+
+    newJob.on('inputSet', function() { 
+        // All input streams were dumped to file(s), we can safely serialize
+        let jobSerial = newJob.getSerialIdentity();
+        MS_lookup(jobSerial)
             .on('known', function(validWorkFolder:string) {
                 //logger.info("I CAN RESURRECT YOU : " + validWorkFolder + ' -> ' + jobTemplate.tagTask);
                 //_resurrect(newJob, validWorkFolder);
             })
             .on('unknown', function() {
                 logger.debug("########## No previous equal job found ##########");
-                newJob.start();
-
-                jobsArray[jobID] = {
-                    'obj': newJob,
-                    'status': 'CREATED',
-                    'nCycle': 0
-                };
+                
+                let previousJobs:jobLib.jobObject[]|undefined;
+                previousJobs = liveMemory.lookup(newJob);
+                
+                if(previousJobs) {
+                   // let refererJob:jobLib.jobObject = getJob(previousJobs[0].id];
+                    logger.debug('Suitable living jobs found shimmering');
+                    melting(previousJobs[0], newJob);
+                    return;
+                }
+                logger.debug('No Suitable living jobs found launching');
+                //liveStore(newJob.getSerialIdentity());  
+                
+                //jobRegister(newJob);
+                liveMemory.jobSet('source', { jobObject : newJob });
+                newJob.launch();
 
                 newJob.on('submitted', function(j) {
-        //console.log(j);
-                    jobsArray[j.id].status = 'SUBMITTED';
-                //logger.debug(self.jobsView());
+                    liveMemory.jobSet('SUBMITTED', { jobObject : newJob });
+                    //jobsArray[j.id].status = 'SUBMITTED';
                 }).on('jobStart', function(job) {
-                    // next lines for tests on squeueReport() :
                     engine.list()
-
             // shall we call dropJob function here ?
                 }).on('scriptReadError', function (err, job) {
                     logger.error(`ERROR while reading the script : \n ${err}`);
                 }).on('scriptWriteError', function (err, job) {
                     logger.error(`ERROR while writing the coreScript : \n ${err}`);
                 }).on('scriptSetPermissionError', function (err, job) {
-                logger.error(`ERROR while trying to set permissions of the coreScript : \n ${err}`);
+                    logger.error(`ERROR while trying to set permissions of the coreScript : \n ${err}`);
+                });
             });
-        });
-        exhaustBool = true;
+    });
+
+    exhaustBool = true;
         //console.log(jobsArray);
 
-        return newJob;
-    }
+    return newJob;
+}
+/*
+    Add the socket 
+*/
+function melting(previousJobs:jobLib.jobObject, newJob:jobLib.jobObject) {
+    // Local melting
+    newJob.isShimmeringOf = previousJobs;
+    previousJobs.hasShimmerings.push(newJob);
+    // consumer view melting
 
+}
 
 /*
     always lookin warehouse first, if negative look in jobsArray
@@ -469,9 +482,9 @@ export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, 
     case3) warehouse/-, jobsArray/+              => copy jobReference and return it
 
 */
-function lookup(jobTemplate:any, constraints:any){
+function MS_lookup(jobTemplate:jobLib.jobSerialInterface){
     let emitter = new events.EventEmitter();
-    let t:number = setTimeout(()=>{ emitter.emit("unknown"); });
+    let t:NodeJS.Timer = setTimeout(()=>{ emitter.emit("unknown"); }, 50);
 
     return emitter;
 }
@@ -484,23 +497,28 @@ function _parseMessage(msg:string) {
 
     let jid:string = matches[1];
     let uStatus = matches[2];
-    if (!jobsArray.hasOwnProperty(jid)) {
+
+    let jobSel = { 'jid' : jid };
+  //  liveMemory.getJob({ 'jid' : jid });
+    if (!liveMemory.getJob(jobSel)) {
         logger.warn(`unregistred job id ${jid}`);
         eventEmitter.emit('unregistredJob', jid);
         return;
         //throw 'unregistred job id ' + jid;
     }
 
-    logger.debug(`Status Updating job ${jid} : from \'${jobsArray[jid].status} \' to \'${uStatus}\'`);
-    if(jobLib.isJobStatus(uStatus))
-        jobsArray[jid].status = uStatus;
-    else
-        logger.error(`unrecognized status at ${uStatus}`);
-    if (uStatus === 'START')
-        jobsArray[jid].obj.jEmit('jobStart', jobsArray[jid].obj);
-    else if (uStatus === "FINISHED")
-        _pull(jid); //TO DO
+    logger.debug(`Status Updating job ${jid} : from
+\'${liveMemory.getJobStatus(jobSel)} \' to \'${uStatus}\'`);
+
+    liveMemory.jobSet(uStatus, jobSel);
+    let job = liveMemory.getJob(jobSel);
+    if (job) {
+        if (uStatus === 'START')
+            job.jEmit('jobStart', job);
+        else if (uStatus === "FINISHED")
+            _pull(job); //TO DO
      //logger.error(`TO DO`);
+    }
 }
 
 
@@ -510,78 +528,44 @@ function _parseMessage(msg:string) {
 
 */
 
-function _pull(jid:string):void {
+function _pull(job:jobLib.jobObject):void {
 
-    console.log("Pulling " + jid);
-    let jRef:jobWrapper = jobsArray[jid];
-    //console.dir(jobsArray[jid]);
-
-    jRef.obj.stderr().then((streamError) => {     
+    console.log("Pulling " + job.id);
+    job.stderr().then((streamError) => {     
         let stderrString:string|null = null;
         streamError.on('data', function (datum) {
             stderrString = stderrString ? stderrString + datum.toString() : datum.toString();
         })
         .on('end', function () {           
-            if(!stderrString) { _storeAndEmit(jid); return; }
-            logger.warn(`Job ${jid} delivered a non empty stderr stream\n${stderrString}`);
-            jRef.obj.ERR_jokers--;
-            if (jRef.obj.ERR_jokers > 0){
-                console.log("Resubmitting this job " + jRef.obj.ERR_jokers + " try left");
-                jRef.obj.resubmit();
-                jRef.nCycle = 0;
+            if(!stderrString) { _storeAndEmit(job.id); return; }
+            logger.warn(`Job ${job.id} delivered a non empty stderr stream\n${stderrString}`);
+            job.ERR_jokers--;
+            if (job.ERR_jokers > 0){
+                console.log(`Resubmitting this job ${job.ERR_jokers} try left`);
+                job.resubmit();
+                liveMemory.setCycle({jobObject:job}, 0);                
             } else {
                 console.log("This job will be set in error state");
-                _storeAndEmit(jid, 'error');
+                _storeAndEmit(job.id, 'error');
             }
         });
     });
 };
 
-
 /*
  We treat error state emission / document it for calling scope
+ // MAybe use jobObject as 1st parameter?
 */
 function _storeAndEmit(jid:string, status?:string) {
-
+    let jobSel = {'jid' : jid};
     logger.warn("STORE & EMIT");
-
-    let jRef:jobWrapper = jobsArray[jid];
-
-    let jobObj:jobLib.jobObject = jRef.obj;
-    delete jobsArray[jid];
-    
-    jobObj.jEmit("completed", jobObj);
-
-    warehouse.store(jobObj);
-
-
- /*   Promise.all([jobObj.stdout(), jobObj.stderr()])
-    .then((streamArray) => {
-        logger.error(`stream Array \n${util.format(streamArray)}`);
-        logger.info("-----_storeAndEmitDump is success");
-        
+    let jobObj:jobLib.jobObject|undefined = liveMemory.getJob(jobSel);
+    if (jobObj) {
+        liveMemory.removeJob(jobSel);
         jobObj.jEmit("completed", jobObj);
-    });
-   */ 
-  /*  } else {
-       
-        if(!status) {
-            //warehouse.store(jobObj);
-            jobObj.jEmit("completed",
-                stdout, stderr, jobObj
-            );
-        } else {
-            jobObj.jEmit("jobError",
-                stdout, stderr, jobObj
-            );
-        }
+
+        //warehouse.store(jobObj);
+    } else {
+        logger.error('Error storing job is missing from pool');
     }
-
-    */
-
-
-
 }
-
-
-
