@@ -27,6 +27,7 @@
     "@types/socket.io-client": "^1.4.32",
     "@types/uuid": "^3.4.3",
     "async": "^2.6.0",
+    "commander": "^2.15.1",
     "date-and-time": "^0.6.2",
     "deep-equal": "^1.0.1",
     "is-stream": "^1.1.0",

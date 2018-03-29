@@ -33,10 +33,7 @@ import childProc = require('child_process');
     fileName : hash value
 */
 
-export type jobStatus = "CREATED" | "SUBMITTED" | "COMPLETED"| "START"|"FINISHED";
-export function isJobStatus(type: string): type is jobStatus {
-    return type == "CREATED" || type ==  "SUBMITTED" || type ==  "COMPLETED" || type == "START"|| type == "FINISHED";
-}
+
 
 /* The jobObject behaves like an emitter
  * Emitter exposes following event:
@@ -51,6 +48,10 @@ export function isJobStatus(type: string): type is jobStatus {
  *          'submitted', {Object}job;
  *          'completed', {Stream}stdio, {Stream}stderr, {Object}job // this event raising is delegated to jobManager
  */
+
+// We type socketPullArgs, which is a vanilla nodeJS function
+type socketPullArgs = [jobObject|jobProxy, Promise<streamLib.Readable>, Promise<streamLib.Readable>] | [jobObject|jobProxy, undefined, undefined];
+
 
 export interface inputDataSocket { [s: string] : streamLib.Readable|string; }
 export interface jobOptProxyInterface {
@@ -292,6 +293,11 @@ export class jobProxy extends events.EventEmitter implements jobOptProxyInterfac
     namespace? :string;
     modules? :string [] = [];
     socket?:any;
+
+    isShimmeringOf?:jobObject;
+    hasShimmerings:jobObject[] = [];
+
+
     constructor(jobOpt:any, uuid?:string){ // Quick and dirty typing
         super();
         this.id = uuid ? uuid : uuidv4();
@@ -306,18 +312,24 @@ export class jobProxy extends events.EventEmitter implements jobOptProxyInterfac
             this.tagTask = jobOpt.tagTask;
         if ('namespace' in jobOpt)
             this.namespace = jobOpt.namespace;
-        if ('socket' in jobOpt) {
-            logger.error('YYYYYYYY');
+        if ('socket' in jobOpt) 
             this.socket = jobOpt.socket;
-        }
+        if('exportVar' in jobOpt)
+            this.exportVar = jobOpt.exportVar;
+        
         this.inputs = new jobInputs(jobOpt.inputs);
     }
     // 2ways Forwarding event to consumer or publicMS 
     // WARNING wont work with streams
     jEmit(eName:string|symbol, ...args: any[]):boolean {
         logger.warn(`jEmit(this) ${eName}`);
+
+        this.hasShimmerings.forEach((shimJob:jobObject) => {
+            shimJob.jEmit(eName, ...args);
+        }); 
+
         // We call the original emitter anyhow
-        logger.debug(`${eName} --> ${util.format(args)}`);
+        //logger.debug(`${eName} --> ${util.format(args)}`);
         //this.emit.apply(this, eName, args);
         //this.emit.apply(this, [eName, ...args])
         this.emit(eName, ...args);
@@ -330,8 +342,13 @@ export class jobProxy extends events.EventEmitter implements jobOptProxyInterfac
         if (this.socket) {
             logger.warn(`jEmitToSocket ${eName}`);
             if(eName === 'completed') {
+
                 //logger.debug(`SSP::\n${util.format(args)}`);
-                socketPull(...args);//eventName, jobObject
+                //socketPull(...args);//eventName, jobObject
+                let sArgs:socketPullArgs = [this, undefined, undefined];
+                if (this.isShimmeringOf)
+                    sArgs = [this, this.isShimmeringOf.stdout(),  this.isShimmeringOf.stderr()];
+                socketPull(...sArgs);
                 return true;
             }
        // Easy to serialize content
@@ -381,10 +398,6 @@ export class jobObject extends jobProxy implements jobOptInterface  {
     fileErr? : string;
     _stdout? :streamLib.Readable;
     _stderr? :streamLib.Readable;
-
-
-    isShimmeringOf?:jobObject;
-    hasShimmerings:jobObject[] = [];
 
     constructor( jobOpt :jobOptInterface, uuid? :string ){
         super(jobOpt, uuid);
@@ -454,6 +467,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
         }
         let content:string = '';
         if(this.script) {
+            //logger.debug(`Accessing${<string>this.scriptFilePath}`);
             content = fs.readFileSync(<string>this.scriptFilePath).toString(); // TO CHECK
         } else if(this.cmd) {
             content = this.cmd;
@@ -472,27 +486,34 @@ export class jobObject extends jobProxy implements jobOptInterface  {
         }
         let self = this;
         this.inputs.write(this.inputDir)
-        .on('OK', ()=> {logger.warn("Coucou");
-        self.jEmit('inputSet');
+        .on('OK', ()=> {
+            let self = this;
+            let fname = this.workDir + '/' + this.id + '.batch';
+            batchDumper(this).on('ready', function(string) {
+                fs.writeFile(fname, string, function(err) {
+                    if (err) {
+                        return console.log(err);
+                    }
+                    jobIdentityFileWriter(self);
+                self.jEmit('inputSet');
+            });
         });
-        
+    });
     }
 
     // Process argument to create the string which will be dumped to an sbatch file
     launch() : void {
-        let self = this;
-        let customCmd = false;
-        batchDumper(this).on('ready', function(string) {
-            let fname = self.workDir + '/' + self.id + '.batch';
+        let fname = this.workDir + '/' + this.id + '.batch';
+        /*batchDumper(this).on('ready', function(string) {
             fs.writeFile(fname, string, function(err) {
                 if (err) {
                     return console.log(err);
                 }
                 jobIdentityFileWriter(self);
-
-                self.submit(fname);
-            });
-        });
+*/
+                this.submit(fname);
+  //          });
+   //     });
     }
 
     submit(fname:string):void {
@@ -529,9 +550,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
     }
 
     async stdout():Promise<streamLib.Readable>{
-
-        logger.info("JOB STDOUT METHOD");
-
+        logger.debug(`async stdout call at ${this.id} `);
         let fNameStdout:string = this.fileOut ? this.fileOut : this.id + ".out";
         let fPath:string = this.workDir + '/' + fNameStdout;
         let stdoutStream:streamLib.Readable = await dumpAndWrap(fPath, this._stdout);
@@ -540,9 +559,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
     }
 
     async stderr():Promise<streamLib.Readable>{
-
-        logger.info("JOB STDERR METHOD");
-
+        logger.debug(`async stderr call at ${this.id} `)
         let fNameStderr:string = this.fileErr ? this.fileErr : this.id + ".err";
         let fPath:string = this.workDir + '/' + fNameStderr;
         let stderrStream:streamLib.Readable = await dumpAndWrap(fPath, this._stderr);
@@ -560,7 +577,6 @@ function jobIdentityFileWriter(job : jobObject) :void {
 }
 
 function batchDumper(job: jobObject) {
-
     let emitter : events.EventEmitter = new events.EventEmitter();
     let batchContentString  : string = "#!/bin/bash\n";
     let adress : string = job.emulated ? 'localhost' : job.adress;

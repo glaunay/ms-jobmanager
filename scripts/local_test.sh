@@ -8,3 +8,5 @@ if [ -z ${waitingTime+x} ]; then echo "waitingTime should be set";waitingTime=5;
 echo "local test start"
 sleep $waitingTime
 echo "local test end"
+
+if [ -z ${jobID+x} ]; then echo "No jobID"; else echo "jobID is $jobID"; fi

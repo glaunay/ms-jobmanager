@@ -75,7 +75,7 @@ function bindForwardEvent(socket) {
         if (!jRef)
             return;
 
-        logger.error(`Following job not found in the process pool ${util.format(jRef)}`);
+        logger.error(`Following job not found in the process pool ${JSON.stringify(jRef.toJSON())}`);
         jRef.emit('lostJob', jRef);
         deleteJob(jobSerial.id);
     });
@@ -114,8 +114,8 @@ function bindForwardEvent(socket) {
 
 function pull(_jobSerial) {  
     let jobSerial = JSON.parse(_jobSerial);
-    logger.debug(`ii : ${util.format(jobSerial)}`);
-    logger.debug(`${typeof(jobSerial)}`);
+    logger.debug(`pulling Object : ${util.format(jobSerial)}`);
+   
     let jobObject = getJobObject(jobSerial.id);
     if (!jobObject)
         return;
@@ -123,7 +123,8 @@ function pull(_jobSerial) {
     logger.info(`${util.format(jobObject)}`);
     jobObject.stdout = ss.createStream();
     jobObject.stderr = ss.createStream();
- 
+    logger.debug(`Pulling for ${jobObject.id}:stdout`);
+    logger.debug(`Pulling for ${jobObject.id}:stderr`)
     ss(socket).emit(`${jobObject.id}:stdout`, jobObject.stdout);
     ss(socket).emit(`${jobObject.id}:stderr`, jobObject.stderr);
 
@@ -179,7 +180,7 @@ export function push(data) {
 
     // Building streams
     jobOpt = buildStreams(jobOpt, job);
-    logger.debug(`${util.format(jobOpt)}`);
+    //logger.debug(`${util.format(jobOpt)}`);
     // Emitting the corresponding event/Symbols for socket streaming;
     socket.on('connect',()=>{});
     ss(socket, {}).on('script', (stream)=>{ jobOpt.script.pipe(stream); });

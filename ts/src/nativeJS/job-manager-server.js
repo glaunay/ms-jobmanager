@@ -63,24 +63,31 @@ export function listen(port) {
     data element type can be scalar or stream, or do we ducktype ?
 
 */
-export function socketPull(jobObject){
-    logger.debug("socket job pulling");
+export function socketPull(jobObject, stdoutStreamOverride, stderrStreamOverride){
+    
+    if(stdoutStreamOverride)
+        logger.debug("Shimmering Socket job pulling");
+    else
+        logger.debug("Genuine socket job pulling");
+        
   //  logger.debug(`${util.format(stdout)}`);
 
+    let stdoutStream = stdoutStreamOverride ? stdoutStreamOverride : jobObject.stdout();
+    let stderrStream = stderrStreamOverride ? stderrStreamOverride : jobObject.stderr();
+    
 
     ss(jobObject.socket).on(`${jobObject.id}:stdout`, function(stream) {
-        //jobObject.stdout().pipe(stream);
-        logger.debug("pumping stdout");
-        jobObject.stdout().then((_stdout) => {
-            logger.warn(`stdoutStream expected ${util.format(_stdout)}`);
+        stdoutStream.then((_stdout) => {
+            logger.debug(`Pumping stdout [${jobObject.id}:stdout]`);
+            //logger.warn(`stdoutStream expected ${util.format(_stdout)}`);
             _stdout.pipe(stream);
         });
     });
     
-    ss(jobObject.socket).on(`${jobObject.id}:stderr`, function(stream) {
-        logger.debug("pumping stderr");
-        jobObject.stderr().then((_stderr) => { 
-            logger.warn(`stderrStream expected ${util.format(_stderr)}`);
+    ss(jobObject.socket).on(`${jobObject.id}:stderr`, function(stream) {       
+        stderrStream.then((_stderr) => { 
+            logger.debug(`Pumping stderr [${jobObject.id}:stderr]`);
+            //logger.warn(`stderrStream expected ${util.format(_stderr)}`);
             _stderr.pipe(stream);
         });
     });

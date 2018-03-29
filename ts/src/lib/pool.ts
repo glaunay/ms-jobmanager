@@ -12,7 +12,7 @@ export type jobStatus = "CREATED" | "SUBMITTED" | "COMPLETED"| "START"|"FINISHED
 export function isJobStatus(type: string): type is jobStatus {
     return type == "CREATED" || type ==  "SUBMITTED" || type ==  "COMPLETED" || type == "START"|| type == "FINISHED";
 }
-type jobShimmering = "source" | "bound" | undefined;
+type jobShimmering = "source" | "bound";
 
 type shimOrStatus = jobShimmering | jobStatus;
 
@@ -25,7 +25,7 @@ interface jobWrapper {
     'obj': jobLib.jobObject,
     'status': jobStatus,
     'nCycle': number,
-    'sType' : jobShimmering
+    'sType' : jobShimmering|undefined
 };
 
 
@@ -44,11 +44,23 @@ export function size(opt?:string):number{
 }
 
 /*  We should follow shimmerings */
-export function removeJob(query:ISearchKey) {
+export function removeJob(query:ISearchKey):boolean {
     let queryID = coherceToID(query);
-    //liveDel(jobsArray[queryID].obj.getSerialIdentity());
+    if(!queryID)
+        return false;
+    let jobToDel:jobLib.jobObject|undefined = getJob(query);
+    if (!jobToDel) {
+        logger.debug(`No job in memory for job selector ${query}`);
+        return false;
+    }
+    logger.debug(`Removing ${util.format(jobToDel.toJSON())}\n
+==>[${jobToDel.hasShimmerings.length} shimmerings to delete]`);
+    jobToDel.hasShimmerings.forEach((shimerJob)=>{removeJob({jobObject:shimerJob});});
+
     delete jobsArray[queryID];
-   
+    logger.debug("Removing successfully");
+    
+    return true;
 }
 
 export function addJob(newJob:jobLib.jobObject){
@@ -59,6 +71,8 @@ export function addJob(newJob:jobLib.jobObject){
         'sType':undefined
     };
     jobsArray[newJob.id] = nWrapper;
+    logger.debug("Adding successfully")
+
 }
 
 export function setCycle(query:ISearchKey, n:number|string):boolean{
@@ -90,6 +104,9 @@ export function getCycle(query:ISearchKey):number|undefined{
 
 function getJobWrapper(query:ISearchKey):jobWrapper|undefined {
     let queryID = coherceToID(query);
+    if(!queryID) 
+        return undefined;
+    
     if(jobsArray.hasOwnProperty(queryID)) 
         return jobsArray[queryID];
     
@@ -125,7 +142,7 @@ export function getJobStatus(query:ISearchKey):jobStatus|undefined {
 export function asString():string {
     return Object.keys(jobsArray).map((jid:string)=>{
         let j:jobLib.jobObject = <jobLib.jobObject>getJob({'jid' : jid});
-        return j.toJSON();
+        return `${util.format(j.toJSON())}`;
     }).join('\n');
 }
 
@@ -167,15 +184,16 @@ function* sourceJobIter() {
         yield w.obj;
 }
 
-function coherceToID(query:ISearchKey):string {
+function coherceToID(query:ISearchKey):string|undefined {
     if('jid' in query)
         return query.jid;
     if('jobSerial' in query)
         return query.jobSerial.id;
-    if('jobObject' in query)
+    if('jobObject' in query) 
         return query.jobObject.id;
-        
-    //logger.error("can't coherce that")
+    
+    logger.error(`can\'t coherce that ${util.format(query)}`);
+    return undefined;
 }
 
 

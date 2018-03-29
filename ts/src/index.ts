@@ -424,18 +424,18 @@ export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, 
                 //_resurrect(newJob, validWorkFolder);
             })
             .on('unknown', function() {
-                logger.debug("########## No previous equal job found ##########");
+                logger.debug("####No suitable job found in warehouse");
                 
                 let previousJobs:jobLib.jobObject[]|undefined;
                 previousJobs = liveMemory.lookup(newJob);
                 
                 if(previousJobs) {
                    // let refererJob:jobLib.jobObject = getJob(previousJobs[0].id];
-                    logger.debug('Suitable living jobs found shimmering');
+                    logger.debug(`${previousJobs.length} suitable living job(s) found, shimmering`);
                     melting(previousJobs[0], newJob);
                     return;
                 }
-                logger.debug('No Suitable living jobs found launching');
+                logger.debug('No Suitable living jobs found, launching');
                 //liveStore(newJob.getSerialIdentity());  
                 
                 //jobRegister(newJob);
@@ -558,13 +558,13 @@ function _pull(job:jobLib.jobObject):void {
 */
 function _storeAndEmit(jid:string, status?:string) {
     let jobSel = {'jid' : jid};
-    logger.warn("STORE & EMIT");
+    logger.debug("Store&Emit");
     let jobObj:jobLib.jobObject|undefined = liveMemory.getJob(jobSel);
     if (jobObj) {
         liveMemory.removeJob(jobSel);
         jobObj.jEmit("completed", jobObj);
 
-        //warehouse.store(jobObj);
+        //warehouse.store(jobObj); // Only if genuine
     } else {
         logger.error('Error storing job is missing from pool');
     }
