@@ -7,7 +7,7 @@ export {jobObject} from '../../job';
 import cType = require('../../commonTypes.js');
 
 import nixLike = require('./localNixLike.js');
-
+import slurm = require('./slurm.js');
 
 export interface engineListData {
         'id'?:        string[];
@@ -47,6 +47,11 @@ export function isEngineSpec(type: string): type is engineSpecs {
 }
 
 
+export interface preprocessorMapFn {
+    (v:string) : string;
+}
+export type preprocessorMapperType = { [s:string] : preprocessorMapFn }
+
 export function getEngine(engineName?:engineSpecs): engineInterface{
     logger.debug(`Asked engine symbol ${engineName}`);
     if (!engineName) {
@@ -56,6 +61,11 @@ export function getEngine(engineName?:engineSpecs): engineInterface{
 
     if(engineName == 'emulate')
         return new nixLike.nixLikeEngine();
+
+    if(engineName == 'slurm')
+        return new slurm.slurmEngine();
+
+        
     logger.error(`Unknown engine name ${engineName}`);
     return new dummyEngine();
 }

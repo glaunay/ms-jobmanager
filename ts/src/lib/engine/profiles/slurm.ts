@@ -1,4 +1,4 @@
-{
+let profiles = {
     "comments": "Definition of slurms set of preprocessors options values",
     "definitions": {
         "default": {
@@ -40,21 +40,24 @@
             "qos": "ws-dev",
             "gid": "ws_users",
             "uid": "ws_ardock",
-            "nNodes": 1,
-            "nCores": 16
+            "nNodes": '1',
+            "nCores": '16'
         },
         "arwen-prod_hex_16cpu": {
             "partition": "ws-prod",
             "qos": "ws-prod",
             "gid": "ws_users",
             "uid": "ws_ardock",
-            "nNodes": 1,
-            "nCores": 16
+            "nNodes": '1',
+            "nCores": '16'
         },
         "arwen_hex_16cpu": {
             "partition": "mpi-mobi",
             "qos": "mpi-mobi",
-            "nCores": 16
+            "nCores": '16'
         }
     }
 }
+
+export default profiles;
+

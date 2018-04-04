@@ -159,7 +159,7 @@ export class jobInputs extends events.EventEmitter {
         if (!cType.isStreamOrStringMap(buffer))
             throw(`Wrong format for ${util.format(buffer)}`);
         let nTotal = Object.keys(buffer).length;
-        logger.debug(`nTotal ${nTotal} supplied job inputs`);
+        logger.debug(`jobInput constructed w/ ${nTotal} items:\n${util.format(buffer)}`);
 
         let self = this;
         for (let key in data) {
@@ -210,7 +210,6 @@ export class jobInputs extends events.EventEmitter {
         return this.hashes;
     }
     write(location:string):jobInputs{
-        logger.info("Writing");
         /*let iteratee = function(string:symbol,stream:streamLib.Readable){
             let target = fs.createWriteStream(`${location}/${symbol}.inp`);
             stream.pipe(target);//.on('finish', function () { ... });
@@ -250,7 +249,7 @@ export class jobInputs extends events.EventEmitter {
                 });
             });
         });
-        logger.info('Launching promises');
+       // logger.info('Launching promises');
         Promise.all(promises).then(values => {           
             self.hashable = true;
             //logger.error(`${values}`);

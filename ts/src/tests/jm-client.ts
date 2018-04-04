@@ -13,16 +13,22 @@ import program = require('commander');
  
 program
   .version('0.1.0')
-  .option('-p, --port', 'MS Job Manager port')
-  .option('-a, --adress', 'MS Job Manager adress')
-  .option('-n, --worker', 'Number of dummy jobs to push-in', parseInt)
+  .option('-p, --port [port number]', 'MS Job Manager port', 8080)
+  .option('-a, --adress [IP adress]', 'MS Job Manager adress', 'localhost')
+  .option('-n, --worker [number]', 'Number of dummy jobs to push-in', 1)
+  .option('-r, --replicate', 'Ask for identical jobs')
   .parse(process.argv);
  
 logger.logger.debug(`${util.format(program)}`);
 logger.logger.debug(`${program.worker}`);
+
+//if(<boolean>program.replicate)
+let replicate:boolean = <boolean>program.replicate;
+
 let port:number = program.port ? parseInt(program.port) : 8080;
 let adress:string = program.adress ? program.adress : 'localhost';
 let n:number = program.worker ? parseInt(program.worker) : 1;
+
 
 jobManagerMS.start({'port':port, 'TCPip':adress})
     .on('ready', ()=>{
@@ -30,9 +36,10 @@ jobManagerMS.start({'port':port, 'TCPip':adress})
         let i:number = 1;
         logger.logger.info(`${i} \\ ${n}`);
 
-        while(i <= 2/*n*/) {
+        while(i <= n) {
             logger.logger.warn(`Worker n${i} submission loop`);
-            let jobOpt:any = createJobOpt(i); 
+            let optJobID = replicate ? 1 : i;
+            let jobOpt:any = createJobOpt(optJobID); 
             let job = jobManagerMS.push(jobOpt);
             job.on('scriptError', (msg:string)=>{
                 logger.logger.error(msg);
@@ -41,8 +48,8 @@ jobManagerMS.start({'port':port, 'TCPip':adress})
                 logger.logger.error(msg);
             })
             .on('completed', (stdout, stderr, jobRef)=>{
-                logger.logger.info("YESSS");
-                logger.logger.info(`(*-*)>>>`);
+                logger.logger.info("**Job Completion callback **");
+                logger.logger.info(`<<<(*-*)>>>`);
                 let stdoutStr = '';
                 stdout.on("data", (buffer:any) => {
                     logger.logger.info('some data');

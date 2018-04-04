@@ -14,6 +14,8 @@ import profiles from './profiles/localNixLike.js'
 import {lookup,psData} from './ps.js';
 
 import {engineListData} from './index.js';
+import {defaultGetPreprocessorString as getPreprocessorString} from './profiles/index.js';
+
 
 let localProfiles:profileInterface = profiles;
 
@@ -21,23 +23,15 @@ let localProfiles:profileInterface = profiles;
 export class nixLikeEngine implements engineLib.engineInterface {
     submitBin:string = '/bin/bash';
 
-   constructor() {
+    constructor() {
 
     }
 
     generateHeader (jobID:string, jobProfileKey:string|undefined, workDir:string):string {
 
-        return '# This is local default header' +  getPreprocessorString (jobID, jobProfileKey);
+        return '# This is local default header' +  getPreprocessorString (jobProfileKey, localProfiles/*,jobID,*/);
     }
-    /*list(): events.EventEmitter {
-        let evt = new events.EventEmitter();
-        let t:NodeJS.Timer =  setTimeout(function() {
-            evt.emit("data", <engineLib.engineListData>{  'id': ['dummyID'], 'partition': ['dummyPartition'],
-                                'nameUUID': ['localNameUUID'], 'status': ['dummyStatus'] });
-      //your code to be executed after 1 second
-        }, 500);
-        return evt;
-    }*/
+
     list ():events.EventEmitter {
         let emitter = new events.EventEmitter();
 
@@ -126,7 +120,7 @@ export class nixLikeEngine implements engineLib.engineInterface {
     }
 
 }
-
+/*
 function getPreprocessorString (id:string, profileKey:string|undefined):string {
     if (!profileKey){
         logger.warn(`profile key undefined, using "default"`);
@@ -146,3 +140,4 @@ function _preprocessorDump (id:string, obj:cType.stringMap):string {
         str += `export ${k}=${obj[k]}\n`;
     return str;
 }
+*/
