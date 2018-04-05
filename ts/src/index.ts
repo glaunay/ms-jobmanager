@@ -56,39 +56,12 @@ let isStarted :boolean = false;
 
 let microServiceSocket:events.EventEmitter|undefined = undefined;
 
-// Foolowing module variable seem deprecated
-//var jobProfile = {};
-//var probPreviousCacheDir = []; // list of the probable cacheDir used in previous nslurm instances
-
-
-//TO DO implement push and compile
-// Try to do a push and check jobID.json
-
-
-/*
-export function init() {
-    console.log('titi');
-    let now = new Date();
-    console.log(date.format(now, 'YYYY/MM/DD HH:mm:ss'));
-}
-
-
-let value = 0;
-export function stash(x:number, uuid?:string): number {
-    console.log(value + "-prev-");
-    value += x;
-    console.log(value + "-prev-");
-    return value;
-}
-*/
 
 interface BinariesSpec {
    cancelBin : string;
    queueBin : string;
    submitBin : string;
 }
-
-
 
 let schedulerID = uuidv4();
 
@@ -113,10 +86,12 @@ function isSpecs(opt: any): opt is jobManagerSpecs {
         logger.error('cacheDir parameter must be an absolute path');
         return false;
     }
+
     if ('cacheDir' in opt && 'tcp' in opt && 'port' in opt && 'engineSpec' in opt)
         return typeof(opt.cacheDir) == 'string' && typeof(opt.tcp) == 'string' &&
                typeof(opt.port) == 'number' && engineLib.isEngineSpec(opt.engineSpec);
         //logger.debug('niet');
+    
     return false;
 }
 
@@ -179,19 +154,20 @@ export function start(opt:jobManagerSpecs):events.EventEmitter {
 
     if (!isSpecs(opt)) {
         let msg:string = `Options required to start manager : \"cacheDir\", \"tcp\", \"port\"\n
-${util.format(opt)}`;
-        let t:NodeJS.Timer = setTimeout(()=>{ eventEmitter.emit("startupError", msg); },50);
+${util.format(opt)}\n`;
+        let t:NodeJS.Timer = setTimeout(()=>{ eventEmitter.emit("error", msg); },50);
         return eventEmitter;
     }
 
     engine = engineLib.getEngine(opt.engineSpec);
+   
     emulator = opt.engineSpec == 'emulate' ? true : false;
-
     cacheDir = opt.cacheDir + '/' + scheduler_id;
     if(opt.tcp)
         TCPip = opt.tcp;
     if(opt.port)
         TCPport = opt.port;
+    
     // if a port is provided for microservice we open connection
     if(opt.microServicePort) {
         microServiceSocket =  jmServer.listen(opt.microServicePort);
@@ -202,6 +178,7 @@ ${util.format(opt)}`;
             logger.debug('Connection on microservice consumer socket');
         });
     }
+    
     if(opt.cycleLength)
         wardenPulse = parseInt(opt.cycleLength);
     if (opt.forceCache)
@@ -213,7 +190,10 @@ ${util.format(opt)}`;
     try {
         fs.mkdirSync(cacheDir);
     } catch (e) {
-        if (e.code != 'EEXIST') throw e;
+        if (e.code != 'EEXIST') { 
+            logger.error(`Can't create cache folder reason:\n${e}}`);
+            throw e;
+        }
         logger.error("Cache found already found at " + cacheDir);
     }
     logger.debug('[' + TCPip + '] opening socket at port ' + TCPport);
@@ -240,10 +220,11 @@ ${util.format(opt)}`;
 }
 
 function jobWarden():void {
+    logger.debug(`liveMemory size = ${liveMemory.size()}`);
     engine.list().on('data', function(d:engineLib.engineListData) {
         logger.silly(`${util.format(d)}`);
         for (let job of liveMemory.startedJobiterator()) {
-            let jobSel = { jobObject : job };
+            let jobSel = { jobObject : job };            
             if (d.nameUUID.indexOf(job.id) === -1) { // if key is not found in listed jobs
                 job.MIA_jokers -= 1;
                 logger.warn(`The job ${job.id} missing from queue! Jokers left is ${job.MIA_jokers}`);
@@ -270,8 +251,6 @@ function jobWarden():void {
     //    return emitter;
     }
 
-// WARNING : MG and GL 05.09.2017 : memory leak :
-// the delete at the end of the function is ok but another reference to the job can still exists [***]
 function ttlTest(job:jobLib.jobObject) {
     if (!job.ttl) return;
     let jobSel = { jobObject : job }; 
@@ -285,6 +264,8 @@ function ttlTest(job:jobLib.jobObject) {
     if(elaspedTime > job.ttl) {
         logger.error(`TTL exceeded for Job ${job.id} terminating it`);
         engine.kill([job]).on('cleanExit', function(){
+            job.jEmit('killed');
+            //eventEmitter.emit("killedJob", job.id);
             liveMemory.removeJob(jobSel);
         }); // Emiter is passed here if needed
     }
@@ -370,6 +351,7 @@ export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, 
         "emulated": emulator ? true : false,
         "adress": TCPip,
         "port": TCPport,
+        "jobProfile" : jobProfileString ? jobProfileString : "default"
            // "submitBin": engine.submitBin(),
     };
 

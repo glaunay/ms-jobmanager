@@ -41,8 +41,7 @@ export interface engineInterface {
 
 export type engineSpecs = "slurm" | "sge" | "emulate";
 export function isEngineSpec(type: string): type is engineSpecs {
-    let a = type == "slurm" || type ==  "sge" ||type ==  "emulate";
-    logger.info(`${a}`);
+    
     return type == "slurm" || type ==  "sge" ||type ==  "emulate";
 }
 

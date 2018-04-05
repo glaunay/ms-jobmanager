@@ -5,7 +5,7 @@
 if [ -z ${waitingTime+x} ]; then echo "waitingTime should be set";waitingTime=5; else echo "waitingTime is all set"; fi
 
 
-echo "local test start"
+echo "local test start for ${waitingTime}sc"
 sleep $waitingTime
 echo "local test end"
 

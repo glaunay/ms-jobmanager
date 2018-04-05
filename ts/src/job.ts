@@ -331,7 +331,24 @@ export class jobProxy extends events.EventEmitter implements jobOptProxyInterfac
         //logger.debug(`${eName} --> ${util.format(args)}`);
         //this.emit.apply(this, eName, args);
         //this.emit.apply(this, [eName, ...args])
-        this.emit(eName, ...args);
+        if(eName !== 'completed') {
+            this.emit(eName, ...args);
+        // Boiler-plate to emit conform completed event
+        // if the consumer is in the same MS as the JM.
+        } else if( this instanceof jobObject ){
+            let stdout, stderr:Promise<streamLib.Readable>;
+            if (this.isShimmeringOf) {
+                stderr =  this.isShimmeringOf.stderr();
+                stdout = this.isShimmeringOf.stdout();
+            } else {
+                stderr = this.stderr();
+                stdout = this.stdout();
+            }
+            Promise.all([stdout, stderr]).then((results)=>{
+                this.emit('completed', ...results)
+            });
+        }
+            
         //return true;
         // if a socket is registred we serialize objects if needed, then
         // pass it to socket
@@ -523,7 +540,8 @@ export class jobObject extends jobProxy implements jobOptInterface  {
         logger.debug(`workdir : > ${this.workDir} <`);
 
         let child = childProc.spawn(this.engine.submitBin, [fname]
-        , {           
+        , {
+            cwd: this.workDir,           
             detached: true, 
             //shell : true,
             stdio: [ 'ignore', 'pipe', 'pipe' ] // ignore stdin, stdout / stderr set to pipe 

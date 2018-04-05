@@ -11,7 +11,7 @@ import {profileInterface, isProfile} from './profiles/index.js';
 
 import profiles from './profiles/slurm.js'
 
-import {defaultGetPreprocessorString as getPreprocessor} from './profiles/index.js';
+import {defaultGetPreprocessorContainer as getPreprocessor} from './profiles/index.js';
 
 let localProfiles:profileInterface = profiles;
 type squeueField = 'id'|'partition'|'nameUUID'|'status';
@@ -57,7 +57,7 @@ export class slurmEngine implements engineLib.engineInterface {
     }
     generateHeader (jobID:string, jobProfileKey:string|undefined, workDir:string):string {
         let processorType:{} = getPreprocessor(jobProfileKey, profiles);
-
+        logger.debug(`preprocesor container:\n${util.format(processorType)}`);
         return _preprocessorDump(jobID, processorType);
     }
     list ():events.EventEmitter {
@@ -87,7 +87,7 @@ export class slurmEngine implements engineLib.engineInterface {
             return jobObj.id;
         })
         logger.debug("Potential pending target job ids are:");
-        console.debug(`${util.format(targetJobID)}`);
+        logger.debug(`${util.format(targetJobID)}`);
     
         let targetProcess:number[] = [];
         let self = this;
@@ -123,6 +123,7 @@ function _preprocessorDump (id:string, preprocessorOpt:cType.stringMap):string {
         }
         let value:string = preprocessorOpt[opt];
         let s:any = preprocessorMapper[opt](value);
+        string += s;
     }
 
     if (preprocessorOpt.hasOwnProperty("qos")) {
@@ -212,6 +213,9 @@ function _squeue(engine:slurmEngine, paramSqueue:string=''):events.EventEmitter 
             return;
         }
         let squeueRes_str = ('' + stdout).replace(/\"/g, ''); // squeue results
+
+        //logger.debug(squeueRes_str);
+        
         squeueRes_str.split('\n')
             .filter(function(jobArray, i) {
                 return jobArray.length > 0 && i > 0;

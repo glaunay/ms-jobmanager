@@ -74,5 +74,6 @@
         "./ts/src/tests/jm-server.ts",
         "./ts/src/tests/jobInputObject.ts",
         "./ts/src/lib/engine/profiles/slurm.ts",
+        "./ts/src/tests/engineBasic.ts"
     ]
 }

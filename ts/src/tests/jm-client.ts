@@ -1,6 +1,7 @@
 import jobManagerMS = require('../nativeJS/job-manager-client.js');
 import logger = require('../logger.js');
 import util = require('util');
+import {createJobOpt} from './testTools';
 /*
     Prototype of a Consumer Micro Service subscribing
      to a Public JobManager Micro Service.
@@ -70,7 +71,7 @@ jobManagerMS.start({'port':port, 'TCPip':adress})
         }//worker--loop
     });
 
-
+/*
 
 function createJobOpt(id?:number):{} {
     let jobProxyOpt:any = {
@@ -89,3 +90,4 @@ function createJobOpt(id?:number):{} {
 
         return jobProxyOpt;
 }
+*/

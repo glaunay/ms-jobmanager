@@ -129,15 +129,12 @@ export function getJobStatus(query:ISearchKey):jobStatus|undefined {
     return undefined;
 }
 
-
-
  export function* startedJobiterator(){
-    for (let w of sourceWrapperIter()){
+    for (let w of sourceWrapperIter()){        
         if(w.status !== "CREATED")
-            yield w.obj
+            yield w.obj;
     }
 }
-
 
 export function asString():string {
     return Object.keys(jobsArray).map((jid:string)=>{
