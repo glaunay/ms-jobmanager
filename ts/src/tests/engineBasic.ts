@@ -1,8 +1,7 @@
 import jobManagerCore = require('../index.js');
-import {logger} from '../logger.js';
+import {logger, setLogLevel} from '../logger.js';
 import program = require('commander');
 import {createJobOpt, performDummyPush} from './testTools';
-
 
 /*
     Prototype of a MicroService jobManager 
@@ -14,18 +13,13 @@ program
   .option('-p, --port <n>', 'MS Job Manager main port', parseInt, 8080)
   .option('-s, --socket <n>', 'MS Job Manager subscriber port', parseInt, 2020)
   .option('-a, --adress [IP adress]', 'MS Job Manager adress', '127.0.0.1')
-  //.option('-l, --list', 'Ask for a list testing', 'localhost')
+  .option('-v, --verbosity [logLevel]', 'Set log level', setLogLevel, 'info')
   .option('-d, --delay <n>', 'delay between test', parseInt, 2500)
   .option('-c, --cache [cacheDir]', 'cache directory', './')
   .option('s, --self <n>', 'Microservice Self testing, by launching n consecutive jobs', parseInt)
   /*.option('-n, --worker [number]', 'Number of dummy jobs to push-in', 1)
   .option('-r, --replicate', 'Ask for identical jobs')*/
-
-
-  .parse(process.argv);
-
-
-
+.parse(process.argv);
 
 logger.info("\t\tStarting public JobManager MicroService");
 
