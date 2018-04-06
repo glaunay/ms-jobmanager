@@ -26,7 +26,7 @@ logger.addColors({
 });
 
 logger.remove(logger.transports.Console);
-logger.add(logger.transports.Console, { level: 'debug', colorize:true });
+logger.add(logger.transports.Console, { level: 'info', colorize:true });
 logger.add(logger.transports.File, { filename: "./logs/devel.log" });
 
 type logLvl = 'debug'|'info'|'verbose'|'silly'|'warn'|'error';

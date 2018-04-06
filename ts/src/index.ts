@@ -211,7 +211,10 @@ ${util.format(opt)}\n`;
             jobWarden();
         }, wardenPulse);
 
-        logger.info(" -==JobManager " + scheduler_id + " ready to process jobs ==-\n\n");
+        logger.info(`-==JobManager successfully started==-
+scheduler_id : ${scheduler_id}
+engine type : ${engine.specs}
+`);
         eventEmitter.emit("ready");
         })
         .on('data', _parseMessage);
@@ -260,9 +263,9 @@ function ttlTest(job:jobLib.jobObject) {
         return;
     }
     var elaspedTime = wardenPulse * nCycle;
-    logger.warn(`Job is running for ~ ${elaspedTime} ms [ttl is : ${job.ttl}"]`);
+    logger.warn(`Job is running for ~ ${elaspedTime} ms [ttl is : ${job.ttl}]`);
     if(elaspedTime > job.ttl) {
-        logger.error(`TTL exceeded for Job ${job.id} terminating it`);
+        logger.warn(`TTL exceeded for Job ${job.id} attempting to terminate it`);
         engine.kill([job]).on('cleanExit', function(){
             job.jEmit('killed');
             //eventEmitter.emit("killedJob", job.id);
@@ -512,7 +515,7 @@ function _parseMessage(msg:string) {
 
 function _pull(job:jobLib.jobObject):void {
 
-    console.log("Pulling " + job.id);
+    logger.silly(`Pulling ${job.id}`);
     job.stderr().then((streamError) => {     
         let stderrString:string|null = null;
         streamError.on('data', function (datum) {

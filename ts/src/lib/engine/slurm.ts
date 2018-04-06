@@ -52,6 +52,7 @@ export class slurmEngine implements engineLib.engineInterface {
     submitBin:string = '/opt/slurm/bin/sbatch'; 
     cancelBin:string = '/opt/slurm/bin/scancel';
     queueBin:string  = '/opt/slurm/bin/squeue';
+    specs:engineLib.engineSpecs='slurm';
     constructor(){
 
     }

@@ -321,7 +321,7 @@ export class jobProxy extends events.EventEmitter implements jobOptProxyInterfac
     // 2ways Forwarding event to consumer or publicMS 
     // WARNING wont work with streams
     jEmit(eName:string|symbol, ...args: any[]):boolean {
-        logger.warn(`jEmit(this) ${eName}`);
+        logger.silly(`jEmit(this) ${eName}`);
 
         this.hasShimmerings.forEach((shimJob:jobObject) => {
             shimJob.jEmit(eName, ...args);

@@ -22,7 +22,7 @@ let localProfiles:profileInterface = profiles;
 
 export class nixLikeEngine implements engineLib.engineInterface {
     submitBin:string = '/bin/bash';
-
+    specs:engineLib.engineSpecs='emulate';
     constructor() {
 
     }

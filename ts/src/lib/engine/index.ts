@@ -37,9 +37,10 @@ export interface engineInterface {
     list : engineList;
     kill : engineKill;
     testCommand : engineTest;
+    specs:engineSpecs;
 }
 
-export type engineSpecs = "slurm" | "sge" | "emulate";
+export type engineSpecs = "slurm" | "sge" | "emulate" | "dummy";
 export function isEngineSpec(type: string): type is engineSpecs {
     
     return type == "slurm" || type ==  "sge" ||type ==  "emulate";
@@ -74,6 +75,7 @@ export class dummyEngine implements engineInterface {
     constructor() {
 
     }
+    specs:engineSpecs='dummy';
     submitBin:string = 'dummyExec';
 
     generateHeader (a : string, b : string|undefined, c : string):string {
