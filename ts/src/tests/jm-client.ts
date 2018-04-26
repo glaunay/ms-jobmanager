@@ -14,7 +14,7 @@ import program = require('commander');
  
 program
   .version('0.1.0')
-  .option('-p, --port [port number]', 'MS Job Manager port', 8080)
+  .option('-p, --port [port number]', 'MS Job Manager port', 2020)
   .option('-a, --adress [IP adress]', 'MS Job Manager adress', 'localhost')
   .option('-n, --worker [number]', 'Number of dummy jobs to push-in', 1)
   .option('-r, --replicate', 'Ask for identical jobs')
@@ -26,7 +26,7 @@ logger.logger.debug(`${program.worker}`);
 //if(<boolean>program.replicate)
 let replicate:boolean = <boolean>program.replicate;
 
-let port:number = program.port ? parseInt(program.port) : 8080;
+let port:number = program.port ? parseInt(program.port) : 2020;
 let adress:string = program.adress ? program.adress : 'localhost';
 let n:number = program.worker ? parseInt(program.worker) : 1;
 
