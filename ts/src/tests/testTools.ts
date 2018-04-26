@@ -13,7 +13,7 @@ export function selfTest(jm:any, n:number):void {
             process.exit();
         });
     }).catch((e)=>{
-        logger.error(`${figure.cross} Submission test not completed`);
+        logger.error(`${figures.cross} Submission test not completed`);
         process.exit();
     });
 }
