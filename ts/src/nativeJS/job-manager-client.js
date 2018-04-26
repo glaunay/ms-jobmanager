@@ -119,8 +119,8 @@ function pull(_jobSerial) {
     let jobObject = getJobObject(jobSerial.id);
     if (!jobObject)
         return;
-    logger.info('completed event on socket');
-    logger.info(`${util.format(jobObject)}`);
+    logger.debug('completed event on socket');
+    logger.debug(`${util.format(jobObject)}`);
     jobObject.stdout = ss.createStream();
     jobObject.stderr = ss.createStream();
     logger.debug(`Pulling for ${jobObject.id}:stdout`);
@@ -163,6 +163,7 @@ export function push(data) {
         namespace:undefined,
         exportVar : undefined,
         jobProfile : "default",
+        ttl : undefined,
         inputs : {}
     }
     for (let k in data) {
@@ -180,13 +181,14 @@ export function push(data) {
 
     // Building streams
     jobOpt = buildStreams(jobOpt, job);
-    //logger.debug(`${util.format(jobOpt)}`);
+    
+    logger.debug(`jobOpt passed to socket:\n${util.format(jobOpt)}`);
     // Emitting the corresponding event/Symbols for socket streaming;
-    socket.on('connect',()=>{});
+    //socket.on('connect',()=>{});
     ss(socket, {}).on('script', (stream)=>{ jobOpt.script.pipe(stream); });
     for (let inputEvent in jobOpt.inputs)
         ss(socket, {}).on(inputEvent, (stream)=>{ jobOpt.inputs[inputEvent].pipe(stream);});
-    logger.debug(`Emiting newJobSocket w/ data\n${util.format(data)}`);
+    logger.debug(`Emiting newJobSocket w/ data\n${util.format(jobOpt)}`);
     
    
     socket.emit('newJobSocket', data);
@@ -225,8 +227,9 @@ function buildStreams(data, job){
 
     data.script = sMap.script;
     data.inputs = sMap.inputs;
-    /*logger.debug("steams buildt");
-    logger.debug(typeof(sMap.script));*/
+    logger.debug("steams buildt");
+    logger.debug(typeof(sMap.script));
+    logger.debug(`${util.format(sMap.script)}`);
     return data;
 }
 

@@ -214,6 +214,8 @@ ${util.format(opt)}\n`;
         logger.info(`-==JobManager successfully started==-
 scheduler_id : ${scheduler_id}
 engine type : ${engine.specs}
+internal ip/port : ${TCPip}/${TCPport}
+consumer port : ${opt.microServicePort}
 `);
         eventEmitter.emit("ready");
         })
@@ -305,7 +307,7 @@ function _checkJobBean(obj:any):boolean{
 
 // New job packet arrived on MS socket, 1st arg is streamMap, 2nd the socket
 function pushMS(data:any) {
-    logger.info(`newJob Packet arrived w/ ${util.format(data)}`);
+    logger.debug(`newJob Packet arrived w/ ${util.format(data)}`);
     if(jobLib.isJobOptProxy(data)) {
         logger.info(`jobOpt successfully received`);
     }

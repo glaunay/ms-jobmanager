@@ -1,7 +1,8 @@
 import jobManagerMS = require('../nativeJS/job-manager-client.js');
-import logger = require('../logger.js');
 import util = require('util');
 import {createJobOpt} from './testTools';
+
+import {logger, setLogLevel} from '../logger.js';
 /*
     Prototype of a Consumer Micro Service subscribing
      to a Public JobManager Micro Service.
@@ -18,10 +19,11 @@ program
   .option('-a, --adress [IP adress]', 'MS Job Manager adress', 'localhost')
   .option('-n, --worker [number]', 'Number of dummy jobs to push-in', 1)
   .option('-r, --replicate', 'Ask for identical jobs')
+  .option('-v, --verbosity [logLevel]', 'Set log level', setLogLevel, 'info')
   .parse(process.argv);
  
-logger.logger.debug(`${util.format(program)}`);
-logger.logger.debug(`${program.worker}`);
+logger.debug(`${util.format(program)}`);
+logger.debug(`${program.worker}`);
 
 //if(<boolean>program.replicate)
 let replicate:boolean = <boolean>program.replicate;
@@ -35,37 +37,37 @@ jobManagerMS.start({'port':port, 'TCPip':adress})
     .on('ready', ()=>{
 
         let i:number = 1;
-        logger.logger.info(`${i} \\ ${n}`);
+        logger.info(`${i} \\ ${n}`);
 
         while(i <= n) {
-            logger.logger.warn(`Worker n${i} submission loop`);
+            logger.warn(`Worker n${i} submission loop`);
             let optJobID = replicate ? 1 : i;
             let jobOpt:any = createJobOpt(optJobID); 
             let job = jobManagerMS.push(jobOpt);
             job.on('scriptError', (msg:string)=>{
-                logger.logger.error(msg);
+                logger.error(msg);
             })
             .on('inputError', (msg:string)=>{
-                logger.logger.error(msg);
+                logger.error(msg);
             })
             .on('completed', (stdout, stderr, jobRef)=>{
-                logger.logger.info("**Job Completion callback **");
-                logger.logger.info(`<<<(*-*)>>>`);
+                logger.info("**Job Completion callback **");
+                logger.info(`<<<(*-*)>>>`);
                 let stdoutStr = '';
                 stdout.on("data", (buffer:any) => {
-                    logger.logger.info('some data');
+                    logger.info('some data');
                     let part = buffer.toString(); 
                     stdoutStr += part;
                 });
-                stdout.on("end", () => {logger.logger.info('This is stdout :\n', stdoutStr);});
+                stdout.on("end", () => {logger.info('This is stdout :\n', stdoutStr);});
     
                 let sterrStr = '';
                 stderr.on("data", (buffer:any) => {
-                    logger.logger.info('some data');
+                    logger.info('some data');
                     let part = buffer.toString(); 
                     sterrStr += part;
                 });
-                stderr.on("end", () => {logger.logger.info('This is stderr :\n', sterrStr);});
+                stderr.on("end", () => {logger.info('This is stderr :\n', sterrStr);});
             });
             i += 1;
         }//worker--loop

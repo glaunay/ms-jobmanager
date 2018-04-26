@@ -77,6 +77,7 @@ export function isJobOptProxy(data: any): data is jobOptProxyInterface {
 
     if (!isStream(data.script)){
         logger.error("jobOptProxy script value is not a readable stream");
+        logger.error(`${data.script}`);
         return false;
     }
     for (let k in data.inputs){
