@@ -129,18 +129,26 @@ export interface jobSerialInterface {
     inputHash? :cType.stringMap
 }
 
+/*
+    Constuctor performs synchronous operations
+    It should be modifed to async
+    -> Emit event to confirm safe construction
+*/
+
 export class jobInputs extends events.EventEmitter {
     streams:cType.streamMap = {};
     paths:cType.stringMap = {};
     hashes:cType.stringMap = {}
 
     hashable:boolean=false;
+
+
     /* Constructor can receive a map w/ two types of value
         Should be SYNC-like
     */
     constructor(data?:{}|any[]/*, skip?:boolean*/){
         super();
-
+        
         let safeNameInput:boolean = true;
         
         if(!data)
@@ -184,16 +192,24 @@ export class jobInputs extends events.EventEmitter {
                     //do something else
                     }
                     this.streams[key] = new streamLib.Readable();
-                    //s._read = function noop() {}; // redundant? see update below
+                  
                     this.streams[key].push(<string>buffer[key]);
                     this.streams[key].push(null);
+                    
+                   // this.streams[key].on('data',(e)=>{ logger.error(`${e.toString()}`); });
+                    
+                    // Following block works as intended
+                  /*  let toto:any = new streamLib.Readable();
+                    toto.push(<string>buffer[key]);
+                    toto.push(null);
+                    toto.on('data',(e)=>{ logger.error(`${e.toString()}`); });*/
+                    //
                }
             }
             this.streams[key].on('error', (e) => {
                 self.emit('streamReadError', e);
             });
-        }
-        
+        }      
     }
     // Access from client side to wrap in socketIO
     getStreamsMap():cType.streamMap|undefined {
@@ -243,6 +259,7 @@ export class jobInputs extends events.EventEmitter {
                         hash.end();
                         let sum = hash.read().toString();
                         self.hashes[tuple[0]] = sum; // the desired sha1sum                        
+                        self.paths[tuple[0]] = path; // the path to file   
                         resolve([tuple[0], path, sum]);//.
                     });
 // read all file and pipe it (write it) to the hash object
@@ -261,7 +278,7 @@ export class jobInputs extends events.EventEmitter {
 
         return this;
     }
-
+    /* Returns a dictionary of inpuSymbols:pathToFile to be dumped by batchDumper */
     
 }
 
@@ -301,7 +318,7 @@ export class jobProxy extends events.EventEmitter implements jobOptProxyInterfac
     constructor(jobOpt:any, uuid?:string){ // Quick and dirty typing
         super();
         this.id = uuid ? uuid : uuidv4();
-        
+      
         if ('modules' in jobOpt)
             this.modules = jobOpt.modules;
         if ('jobProfile' in jobOpt)       
@@ -316,8 +333,9 @@ export class jobProxy extends events.EventEmitter implements jobOptProxyInterfac
             this.socket = jobOpt.socket;
         if('exportVar' in jobOpt)
             this.exportVar = jobOpt.exportVar;
-        
+       
         this.inputs = new jobInputs(jobOpt.inputs);
+
     }
     // 2ways Forwarding event to consumer or publicMS 
     // WARNING wont work with streams
@@ -357,7 +375,7 @@ export class jobProxy extends events.EventEmitter implements jobOptProxyInterfac
         // arguments are tricky (ie: streams), we socketPull
         // otherwise, we JSON.stringify arguments and emit them on socket
         if (this.socket) {
-            logger.warn(`jEmitToSocket ${eName}`);
+           // logger.warn(`jEmitToSocket ${eName}`);
             if(eName === 'completed') {
 
                 //logger.debug(`SSP::\n${util.format(args)}`);
@@ -372,11 +390,12 @@ export class jobProxy extends events.EventEmitter implements jobOptProxyInterfac
             let _args = args.map((e)=>{
                 return JSON.stringify(e); // Primitive OR 
             });
-            logger.warn(`socket emiting event ${eName}`);
+            //logger.warn(`socket emiting event ${eName}`);
             this.socket.emit(eName, ..._args);
         }
         return true;
     }
+   
 }
 
 export class jobObject extends jobProxy implements jobOptInterface  {
@@ -612,9 +631,9 @@ function batchDumper(job: jobObject) {
         }
     }
 
-    if (job.inputSymbols) {
-        for (var key in job.inputSymbols) {
-            batchContentString += key + '="' + job.inputSymbols[key] + '"\n';
+    if (job.inputs) {
+        for (var key in job.inputs.paths) {
+            batchContentString += key + '="' + job.inputs.paths[key] + '"\n';
         }
     }
 

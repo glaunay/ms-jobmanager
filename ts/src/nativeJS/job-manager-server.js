@@ -28,7 +28,7 @@ export function listen(port) {
             for(let inputSymbol in data.inputs) {
                 let filePath = data.inputs[inputSymbol];
                 newData.inputs[inputSymbol] = ss.createStream();
-
+                logger.debug(`ssStream emission for input symbol '${inputSymbol}'`);
                 ss(socket).emit(inputSymbol,newData.inputs[inputSymbol]);
             //streamMap.inputs[inputSymbol].pipe(process.stdout)
             }

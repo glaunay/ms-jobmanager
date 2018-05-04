@@ -1,0 +1,7 @@
+{
+	"script": "../scripts/local_test_MG.sh",
+	"inputs": {
+		"input": "toto et le lapin blanc"
+	},
+	"exportVar": {}
+}

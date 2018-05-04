@@ -173,7 +173,6 @@ export function push(data) {
         }
         jobOpt[k] = data[k];
     }
-
     logger.debug(`Passing following jobOpt to jobProxy constructor\n${util.format(jobOpt)}`);
     let job = new jobLib.jobProxy(jobOpt);
     data.id = job.id;
@@ -181,19 +180,21 @@ export function push(data) {
 
     // Building streams
     jobOpt = buildStreams(jobOpt, job);
-    
     logger.debug(`jobOpt passed to socket:\n${util.format(jobOpt)}`);
     // Emitting the corresponding event/Symbols for socket streaming;
     //socket.on('connect',()=>{});
     ss(socket, {}).on('script', (stream)=>{ jobOpt.script.pipe(stream); });
+
     for (let inputEvent in jobOpt.inputs)
-        ss(socket, {}).on(inputEvent, (stream)=>{ jobOpt.inputs[inputEvent].pipe(stream);});
+        ss(socket, {}).on(inputEvent, (stream)=>{ 
+
+            jobOpt.inputs[inputEvent].pipe(stream);
+        
+        });
     logger.debug(`Emiting newJobSocket w/ data\n${util.format(jobOpt)}`);
     
    
     socket.emit('newJobSocket', data);
-
-
 
     // Registering event
 
@@ -208,7 +209,8 @@ export function push(data) {
 function buildStreams(data, job){
 
     logger.debug(`${util.format(data)}`);
-    let jobInput = new jobLib.jobInputs(data.inputs);
+    //let jobInput = new jobLib.jobInputs(data.inputs);
+    let jobInput = job.inputs;
     // Register error here at stream creation fail
     let sMap = {
         script : fs.createReadStream(data.script),
@@ -227,79 +229,8 @@ function buildStreams(data, job){
 
     data.script = sMap.script;
     data.inputs = sMap.inputs;
-    logger.debug("steams buildt");
+    logger.debug("streams buildt");
     logger.debug(typeof(sMap.script));
     logger.debug(`${util.format(sMap.script)}`);
     return data;
 }
-
-// following is deprecated we try to use the jobInput object
-function _buildStreams(data, job) {
-
-    let scriptSrcStream;
-
-    let sMap = {
-        script : fs.createReadStream(data.script),
-        inputs : {}
-    };
-    sMap.script.on('error', function(){       
-        let msg = `Failed to create read stream from ${data.script}`;
-        job.emit('scriptError', msg);
-    });
-
-
-
-
-    for(let inputSymbol in data.inputs) {
-        let filePath = data.inputs[inputSymbol];   
-        sMap.inputs[inputSymbol] = fs.createReadStream(filePath);
-        sMap.inputs[inputSymbol].on('error', function(){ 
-            let msg = `Failed to create read stream from ${filePath}`;
-            job.emit('inputError', msg);
-        });
-    }
-    data.script = sMap.script;
-    data.inputs = sMap.inputs;
-    logger.debug("steams buildt");
-    logger.debug(typeof(sMap.script));
-    return data;
-}
-
-//asynchronous file/String wrap into stream
-function streamWrap(source) {
-    // if source is a string// a path to a file we make it a stream
-    fs.stat(source, function(err, stat) {
-        if(err == null) {
-            // string is a file
-            fs.createReadStream(filePath);
-            console.log('File exists');
-        } else if(err.code == 'ENOENT') {
-            // file does not exist
-            fs.writeFile('log.txt', 'Some log\n');
-        } else {
-            console.log('Some other error: ', err.code);
-        }
-    });
-}
-
-/* weak typing of the jobOpt  parameter , maybe develop a signature that core and client method should comply to ?*/
-//export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, namespace?: string) : jobLib.jobProxy {
-
-
-    /*Valentin & Melanie patter*/
-    //Create new sokcet connection
-    //see dogfaccotry client l31
-
-//}
-
-
-
-//let job:jobLib.jobSerialInterface = {
-    //cmd : 1222,
-    //'script'? :string,
-   // 'exportVar'? :cType.stringMap,
-   // 'modules'? :string [],
-  //  'tagTask'? :string,
-//    'scriptHash' : null
- //   'inputHash' :cType.stringMap[]
-//}

@@ -313,7 +313,10 @@ function pushMS(data:any) {
     }
     let jobProfile = data.jobProfile;
     data.fromConsumerMS = true;
+
+//data input stream is ok here
     let job = push(jobProfile, data);
+
 
 
     /*let jobOpt:jobLib.jobOptProxyInterface = {

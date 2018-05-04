@@ -3,6 +3,7 @@ import util = require('util');
 import {createJobOpt} from './testTools';
 
 import {logger, setLogLevel} from '../logger.js';
+let fs = require('fs');
 /*
     Prototype of a Consumer Micro Service subscribing
      to a Public JobManager Micro Service.
@@ -17,21 +18,27 @@ program
   .version('0.1.0')
   .option('-p, --port [port number]', 'MS Job Manager port', 2020)
   .option('-a, --adress [IP adress]', 'MS Job Manager adress', 'localhost')
+  .option('-j, --jobOpt [path to JSON file], A job Option specs')
+  .option('-s, --shellScript [path to bash script], A bash script to execute')
   .option('-n, --worker [number]', 'Number of dummy jobs to push-in', 1)
   .option('-r, --replicate', 'Ask for identical jobs')
   .option('-v, --verbosity [logLevel]', 'Set log level', setLogLevel, 'info')
   .parse(process.argv);
  
-logger.debug(`${util.format(program)}`);
-logger.debug(`${program.worker}`);
-
-//if(<boolean>program.replicate)
 let replicate:boolean = <boolean>program.replicate;
 
 let port:number = program.port ? parseInt(program.port) : 2020;
 let adress:string = program.adress ? program.adress : 'localhost';
 let n:number = program.worker ? parseInt(program.worker) : 1;
 
+let jobOpt:any;
+
+if (program.jobOpt) {
+    let data:any = fs.readFileSync(program.jobOpt, 'utf8');
+    jobOpt = JSON.parse(data);
+}
+if(program.shellScript)
+    fs.statSync(program.shellScript)
 
 jobManagerMS.start({'port':port, 'TCPip':adress})
     .on('ready', ()=>{
@@ -42,7 +49,11 @@ jobManagerMS.start({'port':port, 'TCPip':adress})
         while(i <= n) {
             logger.warn(`Worker n${i} submission loop`);
             let optJobID = replicate ? 1 : i;
-            let jobOpt:any = createJobOpt(optJobID); 
+            if(!program.jobOpt)
+                jobOpt = createJobOpt(optJobID); 
+            if(program.shellScript)
+                jobOpt.script = program.shellScript;
+
             let job = jobManagerMS.push(jobOpt);
             job.on('scriptError', (msg:string)=>{
                 logger.error(msg);
