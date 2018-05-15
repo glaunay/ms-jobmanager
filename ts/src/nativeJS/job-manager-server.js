@@ -20,6 +20,7 @@ export function listen(port) {
     io.on('connection', function(socket){
         evt.emit('connection');
         socket.on('newJobSocket', (data) => {
+            let socketNamespace = data.id;
             logger.debug(`========\n=============\nnewJobSocket received container:\n${util.format(data)}`);
             let newData = {
                 script : ss.createStream(),
@@ -29,11 +30,12 @@ export function listen(port) {
                 let filePath = data.inputs[inputSymbol];
                 newData.inputs[inputSymbol] = ss.createStream();
                 logger.debug(`ssStream emission for input symbol '${inputSymbol}'`);
-                ss(socket).emit(inputSymbol,newData.inputs[inputSymbol]);
-            //streamMap.inputs[inputSymbol].pipe(process.stdout)
+                ss(socket).emit(socketNamespace + "/" + inputSymbol,newData.inputs[inputSymbol]);
+                //logger.warn('IeDump from' +  socketNamespace + "/" + inputSymbol);
+                //newData.inputs[inputSymbol].pipe(process.stdout)
             }
             
-            ss(socket).emit('script', newData.script);
+            ss(socket).emit(socketNamespace + "/script", newData.script);
             //logger.error(`TOTOT2\n${util.format(newData)}`);
         
             for (let k in data) {

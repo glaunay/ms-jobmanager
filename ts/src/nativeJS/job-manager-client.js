@@ -180,13 +180,13 @@ export function push(data) {
 
     // Building streams
     jobOpt = buildStreams(jobOpt, job);
-    logger.debug(`jobOpt passed to socket:\n${util.format(jobOpt)}`);
+    logger.debug(`jobOpt passed to socket w/ id ${data.id}:\n${util.format(jobOpt)}`);
     // Emitting the corresponding event/Symbols for socket streaming;
     //socket.on('connect',()=>{});
-    ss(socket, {}).on('script', (stream)=>{ jobOpt.script.pipe(stream); });
+    ss(socket, {}).on(data.id + '/script', (stream)=>{ jobOpt.script.pipe(stream); });
 
     for (let inputEvent in jobOpt.inputs)
-        ss(socket, {}).on(inputEvent, (stream)=>{ 
+        ss(socket, {}).on(data.id + '/' + inputEvent, (stream)=>{ 
 
             jobOpt.inputs[inputEvent].pipe(stream);
         

@@ -316,8 +316,8 @@ function pushMS(data:any) {
 
 //data input stream is ok here
     let job = push(jobProfile, data);
-
-
+   /* logger.warn("eDump");
+    data.inputs.input.pipe(process.stdout);*/
 
     /*let jobOpt:jobLib.jobOptProxyInterface = {
         engine : microEngine,
