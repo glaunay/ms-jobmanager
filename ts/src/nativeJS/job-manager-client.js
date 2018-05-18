@@ -208,7 +208,7 @@ export function push(data) {
 
 function buildStreams(data, job){
 
-    logger.debug(`${util.format(data)}`);
+    logger.debug(`-->${util.format(data)}`);
     //let jobInput = new jobLib.jobInputs(data.inputs);
     let jobInput = job.inputs;
     // Register error here at stream creation fail
@@ -219,6 +219,7 @@ function buildStreams(data, job){
     sMap.script.on('error', function(){       
         let msg = `Failed to create read stream from ${data.script}`;
         job.emit('scriptError', msg);
+	throw("No one here");
     });
 
     jobInput.on('streamReadError',(e)=>{
