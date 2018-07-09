@@ -18,6 +18,8 @@ import jmServer = require('./nativeJS/job-manager-server.js');
 
 import liveMemory = require('./lib/pool.js');
 
+import clientWH = require('ms-warehouse');
+
 //let search:warehouse.warehousSearchInterface;
 
 let engine :engineLib.engineInterface; // to type with Engine contract function signature
@@ -31,6 +33,10 @@ let TCPip : string = '127.0.0.1';
 let TCPport :number = 2222;
 // Port for consumer microServices
 let proxyPort: number = 8080;
+// Address of the Warehouse MicroService
+let addressWH: string = '127.0.0.1';
+// Port for communication w/ Warehouse
+let portWH: number = 7688;
 
 let scheduler_id :string = uuidv4();
 let dataLength :number = 0;
@@ -64,7 +70,7 @@ interface BinariesSpec {
 }
 
 let schedulerID = uuidv4();
-
+// VR Add Warehouse coordinates
 interface jobManagerSpecs {
     cacheDir : string,
     tcp : string,
@@ -74,9 +80,11 @@ interface jobManagerSpecs {
     forceCache? : string,
     engineSpec : engineLib.engineSpecs,
     microServicePort?:number;
+    warehouseAddress?: string,
+    warehousePort?: number
     //asMicroService?:boolean;
 }
-
+//VR change typeguard to warehouse
 function isSpecs(opt: any): opt is jobManagerSpecs {
     //logger.debug('???');
     //logger.debug(`${opt.cacheDir}`);
@@ -183,6 +191,12 @@ ${util.format(opt)}\n`;
         wardenPulse = parseInt(opt.cycleLength);
     if (opt.forceCache)
         cacheDir = opt.forceCache;
+
+    if(opt.warehouseAddress)
+        addressWH = opt.warehouseAddress
+
+    if(opt.warehousePort)
+        portWH = opt.warehousePort
 
         //jobProfiles = opt.jobProfiles;
 
@@ -373,8 +387,6 @@ export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, 
         jobTemplate.cmd = jobOpt.cmd;
     if ('inputs' in jobOpt)
         jobTemplate.inputs = jobOpt.inputs;
-    if ('modules' in jobOpt)
-        jobTemplate.modules = jobOpt.modules;
     if ('tagTask' in jobOpt)
         jobTemplate.tagTask = jobOpt.tagTask;
     if ('ttl' in jobOpt)
@@ -409,7 +421,11 @@ export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, 
         // All input streams were dumped to file(s), we can safely serialize
         let jobSerial = newJob.getSerialIdentity();
         MS_lookup(jobSerial)
-            .on('known', function(validWorkFolder:string) {
+            .on('known', function(fStdoutName: string, fStderrName: string, workPath: string) {
+                newJob.respawn(fStdoutName, fStderrName, workPath);
+                newJob.jEmit("completed", newJob);
+                // Repertoir valide
+                // Extraire la sortie d'erreur / standard du job et faire lever levent completed
                 //logger.info("I CAN RESURRECT YOU : " + validWorkFolder + ' -> ' + jobTemplate.tagTask);
                 //_resurrect(newJob, validWorkFolder);
             })
@@ -474,8 +490,41 @@ function melting(previousJobs:jobLib.jobObject, newJob:jobLib.jobObject) {
 */
 function MS_lookup(jobTemplate:jobLib.jobSerialInterface){
     let emitter = new events.EventEmitter();
-    let t:NodeJS.Timer = setTimeout(()=>{ emitter.emit("unknown"); }, 50);
+  
+    let jobConstraints = {
+        "exportVar": jobTemplate.exportVar,
+        "scriptHash": jobTemplate.scriptHash,
+        "inputHash": jobTemplate.inputHash
+    }
 
+    let param = {
+        warehouseAddress: addressWH,
+        portSocket: portWH
+    }
+    // Add hanshake checking
+    clientWH.handshake(param).then((bool: boolean)=>{
+       logger.log('info', `Connection with Warehouse server succeed, starting communication...\n`);
+       clientWH.pushConstraints(jobConstraints).on('foundDocs', (nameOut: string, nameErr: string, workPath: string) => {
+            emitter.emit("known", nameOut, nameErr, workPath);
+        })
+        .on('notFoundDocs', () => {
+            emitter.emit("unknown");
+        })
+    })
+    .catch((bool: boolean)=> {
+        logger.log('warn', `Connection with Warehouse server cannot be establish, disconnecting socket...\n`)
+        let t:NodeJS.Timer = setTimeout(()=>{ emitter.emit("unknown"); }, 50);
+    })
+
+    
+
+
+    /*
+    wareHouseClientApi.find(jobTemplate)
+        .on('found', (d:{})=>{
+            emitter.emit("knwown,".d.workFolder);
+        })
+*/
     return emitter;
 }
 
@@ -518,15 +567,14 @@ function _parseMessage(msg:string) {
 
 */
 
-function _pull(job:jobLib.jobObject):void {
-
+function _pull(job:jobLib.jobObject):void { 
     logger.silly(`Pulling ${job.id}`);
     job.stderr().then((streamError) => {     
         let stderrString:string|null = null;
         streamError.on('data', function (datum) {
             stderrString = stderrString ? stderrString + datum.toString() : datum.toString();
         })
-        .on('end', function () {           
+        .on('end', function () {          
             if(!stderrString) { _storeAndEmit(job.id); return; }
             logger.warn(`Job ${job.id} delivered a non empty stderr stream\n${stderrString}`);
             job.ERR_jokers--;
@@ -547,12 +595,22 @@ function _pull(job:jobLib.jobObject):void {
  // MAybe use jobObject as 1st parameter?
 */
 function _storeAndEmit(jid:string, status?:string) {
+
     let jobSel = {'jid' : jid};
     logger.debug("Store&Emit");
     let jobObj:jobLib.jobObject|undefined = liveMemory.getJob(jobSel);
     if (jobObj) {
         liveMemory.removeJob(jobSel);
         jobObj.jEmit("completed", jobObj);
+
+        let serialJob : jobLib.jobSerialInterface = jobObj.getSerialIdentity(); 
+        // add type 
+        // Make some tests on the jobFootPrint literal?
+        
+        clientWH.storeJob(serialJob).on('addSuccess', (message: any) => {
+           logger.log('success', `Job footprint stored in Warehouse`)
+        });
+       
 
         //warehouse.store(jobObj); // Only if genuine
     } else {

@@ -17,6 +17,8 @@ program
   .option('-d, --delay <n>', 'delay between test', parseInt)
   .option('-c, --cache [cacheDir]', 'cache directory', './')
   .option('-s, --self <n>', 'Microservice Self testing, by launching n consecutive jobs', parseInt)
+  .option('-w, --warehouse [address]', 'Warehouse address', '127.0.0.1')
+  .option('-x, --whport <n>', 'Warehouse port', parseInt)
   /*.option('-n, --worker [number]', 'Number of dummy jobs to push-in', 1)
   .option('-r, --replicate', 'Ask for identical jobs')*/
 .parse(process.argv);
@@ -28,7 +30,9 @@ let testParameters = {
     engineSpec : program.engine, //as jobManagerCore.engineSpecs,
     tcp : program.adress,
     port : program.port ? program.port : 8080,
-    microServicePort:program.socket ? program.socket : 2020
+    microServicePort:program.socket ? program.socket : 2020,
+    warehouseAddress: program.warehouse,
+    warehousePort: program.whport ? program.whport : 7688
 };
 
 let jobProxyOpt:any = {

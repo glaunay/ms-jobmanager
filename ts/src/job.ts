@@ -119,6 +119,7 @@ export function isJobOptProxy(data: any): data is jobOptProxyInterface {
 
 
 export interface jobSerialInterface {
+    workDir?: string,
     id : string,
     cmd? :string,
     script? :string,
@@ -128,6 +129,7 @@ export interface jobSerialInterface {
     scriptHash :string,
     inputHash? :cType.stringMap
 }
+
 
 /*
     Constuctor performs synchronous operations
@@ -492,6 +494,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
     // DANGER script HASH not possible on string > 250MB
     getSerialIdentity () : jobSerialInterface {
         let serial : jobSerialInterface = {
+            workDir : this.workDir,
             id : this.id,
             cmd : this.cmd,
             script : this.scriptFilePath,
@@ -603,6 +606,13 @@ export class jobObject extends jobProxy implements jobOptInterface  {
 
         return stderrStream;
     }
+
+
+    respawn(fStdoutName: string, fStderrName: string, workPath: string): void {
+        this.fileOut = fStdoutName;
+        this.fileErr = fStderrName;
+        this.workDir = workPath;
+    }
 }
 
 
@@ -704,8 +714,8 @@ function _copyScript(job : jobObject, fname : string, emitter : events.EventEmit
     return empty stream
 */
 function dumpAndWrap(fName:string/*, localDir:string*/, sourceToDump?:streamLib.Readable):Promise<streamLib.Readable>{
-    let p = new Promise<streamLib.Readable>(function(resolve) {
 
+    let p = new Promise<streamLib.Readable>(function(resolve) {
 
         fs.stat(fName,(err, stat)=>{
             if(!err) {
