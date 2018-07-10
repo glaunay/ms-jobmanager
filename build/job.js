@@ -324,6 +324,7 @@ class jobObject extends jobProxy {
     // DANGER script HASH not possible on string > 250MB
     getSerialIdentity() {
         let serial = {
+            workDir: this.workDir,
             id: this.id,
             cmd: this.cmd,
             script: this.scriptFilePath,
@@ -425,6 +426,11 @@ class jobObject extends jobProxy {
             let stderrStream = yield dumpAndWrap(fPath, this._stderr);
             return stderrStream;
         });
+    }
+    respawn(fStdoutName, fStderrName, workPath) {
+        this.fileOut = fStdoutName;
+        this.fileErr = fStderrName;
+        this.workDir = workPath;
     }
 }
 exports.jobObject = jobObject;

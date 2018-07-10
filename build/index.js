@@ -13,6 +13,7 @@ const engineLib = require("./lib/engine/index.js");
 const cType = require("./commonTypes.js");
 const jmServer = require("./nativeJS/job-manager-server.js");
 const liveMemory = require("./lib/pool.js");
+const clientWH = require("ms-warehouse");
 //let search:warehouse.warehousSearchInterface;
 let engine; // to type with Engine contract function signature
 let microEngine = new engineLib.dummyEngine(); // dummy engine used by jobProxy instance
@@ -22,6 +23,10 @@ let TCPip = '127.0.0.1';
 let TCPport = 2222;
 // Port for consumer microServices
 let proxyPort = 8080;
+// Address of the Warehouse MicroService
+let addressWH = '127.0.0.1';
+// Port for communication w/ Warehouse
+let portWH = 7688;
 let scheduler_id = uuidv4();
 let dataLength = 0;
 // Intervall for periodic operations
@@ -37,6 +42,7 @@ let emulator = false; // Trying to keep api/events intact while running job as f
 let isStarted = false;
 let microServiceSocket = undefined;
 let schedulerID = uuidv4();
+//VR change typeguard to warehouse
 function isSpecs(opt) {
     //logger.debug('???');
     //logger.debug(`${opt.cacheDir}`);
@@ -126,6 +132,10 @@ ${util.format(opt)}\n`;
         wardenPulse = parseInt(opt.cycleLength);
     if (opt.forceCache)
         cacheDir = opt.forceCache;
+    if (opt.warehouseAddress)
+        addressWH = opt.warehouseAddress;
+    if (opt.warehousePort)
+        portWH = opt.warehousePort;
     //jobProfiles = opt.jobProfiles;
     logger.debug("Attempting to create cache for process at " + cacheDir);
     try {
@@ -302,8 +312,6 @@ function push(jobProfileString, jobOpt /*jobOptInterface*/, namespace) {
         jobTemplate.cmd = jobOpt.cmd;
     if ('inputs' in jobOpt)
         jobTemplate.inputs = jobOpt.inputs;
-    if ('modules' in jobOpt)
-        jobTemplate.modules = jobOpt.modules;
     if ('tagTask' in jobOpt)
         jobTemplate.tagTask = jobOpt.tagTask;
     if ('ttl' in jobOpt)
@@ -327,7 +335,11 @@ function push(jobProfileString, jobOpt /*jobOptInterface*/, namespace) {
         // All input streams were dumped to file(s), we can safely serialize
         let jobSerial = newJob.getSerialIdentity();
         MS_lookup(jobSerial)
-            .on('known', function (validWorkFolder) {
+            .on('known', function (fStdoutName, fStderrName, workPath) {
+            newJob.respawn(fStdoutName, fStderrName, workPath);
+            newJob.jEmit("completed", newJob);
+            // Repertoir valide
+            // Extraire la sortie d'erreur / standard du job et faire lever levent completed
             //logger.info("I CAN RESURRECT YOU : " + validWorkFolder + ' -> ' + jobTemplate.tagTask);
             //_resurrect(newJob, validWorkFolder);
         })
@@ -385,7 +397,35 @@ function melting(previousJobs, newJob) {
 */
 function MS_lookup(jobTemplate) {
     let emitter = new events.EventEmitter();
-    let t = setTimeout(() => { emitter.emit("unknown"); }, 50);
+    let jobConstraints = {
+        "exportVar": jobTemplate.exportVar,
+        "scriptHash": jobTemplate.scriptHash,
+        "inputHash": jobTemplate.inputHash
+    };
+    let param = {
+        warehouseAddress: addressWH,
+        portSocket: portWH
+    };
+    // Add hanshake checking
+    clientWH.handshake(param).then((bool) => {
+        logger.log('info', `Connection with Warehouse server succeed, starting communication...\n`);
+        clientWH.pushConstraints(jobConstraints).on('foundDocs', (nameOut, nameErr, workPath) => {
+            emitter.emit("known", nameOut, nameErr, workPath);
+        })
+            .on('notFoundDocs', () => {
+            emitter.emit("unknown");
+        });
+    })
+        .catch((bool) => {
+        logger.log('warn', `Connection with Warehouse server cannot be establish, disconnecting socket...\n`);
+        let t = setTimeout(() => { emitter.emit("unknown"); }, 50);
+    });
+    /*
+    wareHouseClientApi.find(jobTemplate)
+        .on('found', (d:{})=>{
+            emitter.emit("knwown,".d.workFolder);
+        })
+*/
     return emitter;
 }
 function _parseMessage(msg) {
@@ -459,6 +499,12 @@ function _storeAndEmit(jid, status) {
     if (jobObj) {
         liveMemory.removeJob(jobSel);
         jobObj.jEmit("completed", jobObj);
+        let serialJob = jobObj.getSerialIdentity();
+        // add type 
+        // Make some tests on the jobFootPrint literal?
+        clientWH.storeJob(serialJob).on('addSuccess', (message) => {
+            logger.log('success', `Job footprint stored in Warehouse`);
+        });
         //warehouse.store(jobObj); // Only if genuine
     }
     else {
