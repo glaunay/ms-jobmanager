@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 let profiles = {
     "comments": "Definition of slurms set of preprocessors options values",
     "definitions": {
+        "ifb-slurm": {},
         "default": {
             "partition": "medium-mobi",
             "qos": "medium-mobi"
