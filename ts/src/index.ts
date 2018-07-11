@@ -501,22 +501,15 @@ function MS_lookup(jobTemplate:jobLib.jobSerialInterface){
         warehouseAddress: addressWH,
         portSocket: portWH
     }
-    // Add hanshake checking
-    clientWH.handshake(param).then((bool: boolean)=>{
-       logger.log('info', `Connection with Warehouse server succeed, starting communication...\n`);
-       clientWH.pushConstraints(jobConstraints).on('foundDocs', (nameOut: string, nameErr: string, workPath: string) => {
-            emitter.emit("known", nameOut, nameErr, workPath);
-        })
-        .on('notFoundDocs', () => {
-            emitter.emit("unknown");
-        })
+    clientWH.pushConstraints(jobConstraints).on('foundDocs', (nameOut: string, nameErr: string, workPath: string) => {
+        emitter.emit("known", nameOut, nameErr, workPath);
     })
-    .catch((bool: boolean)=> {
-        logger.log('warn', `Connection with Warehouse server cannot be establish, disconnecting socket...\n`)
-        let t:NodeJS.Timer = setTimeout(()=>{ emitter.emit("unknown"); }, 50);
+    .on('notFoundDocs', () => {
+        emitter.emit("unknown");
     })
-
-    
+    .on('cantConnect', () => {
+        emitter.emit("unknown");
+    })
 
 
     /*
