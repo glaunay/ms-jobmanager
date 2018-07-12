@@ -19,6 +19,7 @@ program
   .option('-s, --self <n>', 'Microservice Self testing, by launching n consecutive jobs', parseInt)
   .option('-w, --warehouse [address]', 'Warehouse address', '127.0.0.1')
   .option('-x, --whport <n>', 'Warehouse port', parseInt)
+  .option('-t, --whtest', 'Warehouse connection test')
   /*.option('-n, --worker [number]', 'Number of dummy jobs to push-in', 1)
   .option('-r, --replicate', 'Ask for identical jobs')*/
 .parse(process.argv);
@@ -32,7 +33,8 @@ let testParameters = {
     port : program.port ? program.port : 8080,
     microServicePort:program.socket ? program.socket : 2020,
     warehouseAddress: program.warehouse,
-    warehousePort: program.whport ? program.whport : 7688
+    warehousePort: program.whport ? program.whport : 7688,
+    warehouseTest: program.whtest ? true : false
 };
 
 let jobProxyOpt:any = {

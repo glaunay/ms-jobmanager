@@ -136,6 +136,12 @@ ${util.format(opt)}\n`;
         addressWH = opt.warehouseAddress;
     if (opt.warehousePort)
         portWH = opt.warehousePort;
+    if (opt.warehouseTest && opt.warehouseTest === true)
+        clientWH.handshake({
+            warehouseAddress: opt.warehouseAddress,
+            portSocket: opt.warehousePort
+        }).then(() => { })
+            .catch(() => { });
     //jobProfiles = opt.jobProfiles;
     logger.debug("Attempting to create cache for process at " + cacheDir);
     try {

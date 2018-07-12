@@ -81,7 +81,8 @@ interface jobManagerSpecs {
     engineSpec : engineLib.engineSpecs,
     microServicePort?:number;
     warehouseAddress?: string,
-    warehousePort?: number
+    warehousePort?: number,
+    warehouseTest?: boolean
     //asMicroService?:boolean;
 }
 //VR change typeguard to warehouse
@@ -197,6 +198,13 @@ ${util.format(opt)}\n`;
 
     if(opt.warehousePort)
         portWH = opt.warehousePort
+
+    if(opt.warehouseTest && opt.warehouseTest === true)
+        clientWH.handshake({
+            warehouseAddress: opt.warehouseAddress,
+            portSocket: opt.warehousePort
+        }).then(() => {})
+        .catch(() => {})
 
         //jobProfiles = opt.jobProfiles;
 
@@ -510,7 +518,7 @@ function MS_lookup(jobTemplate:jobLib.jobSerialInterface){
     .on('cantConnect', () => {
         emitter.emit("unknown");
     })
-    
+
     return emitter;
 }
 
