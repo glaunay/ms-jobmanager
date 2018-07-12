@@ -179,7 +179,7 @@ function jobWarden() {
         logger.silly(`${util.format(d)}`);
         for (let job of liveMemory.startedJobiterator()) {
             let jobSel = { jobObject: job };
-            if (d.nameUUID.indexOf(job.id) === -1) {
+            if (d.nameUUID.indexOf(job.id) === -1) { // if key is not found in listed jobs
                 job.MIA_jokers -= 1;
                 logger.warn(`The job ${job.id} missing from queue! Jokers left is ${job.MIA_jokers}`);
                 if (job.MIA_jokers === 0) {
@@ -415,12 +415,6 @@ function MS_lookup(jobTemplate) {
         .on('cantConnect', () => {
         emitter.emit("unknown");
     });
-    /*
-    wareHouseClientApi.find(jobTemplate)
-        .on('found', (d:{})=>{
-            emitter.emit("knwown,".d.workFolder);
-        })
-*/
     return emitter;
 }
 function _parseMessage(msg) {

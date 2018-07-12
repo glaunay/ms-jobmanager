@@ -510,14 +510,7 @@ function MS_lookup(jobTemplate:jobLib.jobSerialInterface){
     .on('cantConnect', () => {
         emitter.emit("unknown");
     })
-
-
-    /*
-    wareHouseClientApi.find(jobTemplate)
-        .on('found', (d:{})=>{
-            emitter.emit("knwown,".d.workFolder);
-        })
-*/
+    
     return emitter;
 }
 

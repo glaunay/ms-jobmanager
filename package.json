@@ -35,7 +35,7 @@
     "log-update": "^2.3.0",
     "md5": "^2.2.1",
     "mkdirp": "^0.5.1",
-    "ms-warehouse": "^1.0.8",
+    "ms-warehouse": "^1.1.1",
     "socket.io": "^2.0.4",
     "socket.io-client": "^2.0.4",
     "socket.io-stream": "^0.9.1",

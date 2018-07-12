@@ -129,7 +129,7 @@ function jobSet(status, query) {
     }
     if (isJobStatus(status))
         jobWrapper.status = status;
-    else
+    else // its a shim
         jobWrapper.sType = status;
     return true;
 }
