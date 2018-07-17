@@ -29,7 +29,7 @@ logger.remove(logger.transports.Console);
 logger.add(logger.transports.Console, { level: 'info', colorize:true });
 logger.add(logger.transports.File, { filename: "./logs/devel.log" });
 
-type logLvl = 'debug'|'info'|'verbose'|'silly'|'warn'|'error';
+export type logLvl = 'debug'|'info'|'verbose'|'silly'|'warn'|'error';
 function isLogLvl(value:string): value is logLvl {
     return value === 'debug' || value === 'info' || value === 'verbose' || value === 'silly'
     || value === 'warn' || value === 'error';
