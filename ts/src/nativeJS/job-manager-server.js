@@ -43,8 +43,6 @@ export function listen(port) {
                     newData[k] = data[k];
             }
             newData.socket = socket;
-            //logger.error(`TOTOT3\n${util.format(newData)}`);
-        //streamMap.script.pipe(process.stdout)
         // Emitting the corresponding event/Symbols for socket streaming
             logger.debug(`========\n=============\nnewJobSocket emmitting container:\n${util.format(newData)}`);
             evt.emit('newJobSocket', newData);

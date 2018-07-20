@@ -12,8 +12,7 @@ let profiles = {
             "WORKDIR" : "$PWD",// to mimic other engines : specify a workdir
             "user": "buddy",
             "system": "nix",
-            "waitingTime" : "10",
-            "JOB_PROFILE" : "dummy"
+            "waitingTime" : "10"
         }
     };
 

@@ -546,10 +546,13 @@ function _parseMessage(msg:string) {
     liveMemory.jobSet(uStatus, jobSel);
     let job = liveMemory.getJob(jobSel);
     if (job) {
-        if (uStatus === 'START')
+        if (uStatus === 'START') {
             job.jEmit('jobStart', job);
-        else if (uStatus === "FINISHED")
+            logger.debug("parsing Message ==> emit jobStart");
+        } else if (uStatus === "FINISHED") {
+            logger.debug("parsing Message ==> FINISHED && pullin");
             _pull(job); //TO DO
+        }   
      //logger.error(`TO DO`);
     }
 }

@@ -115,7 +115,7 @@ function bindForwardEvent(socket) {
 function pull(_jobSerial) {  
     let jobSerial = JSON.parse(_jobSerial);
     logger.debug(`pulling Object : ${util.format(jobSerial)}`);
-   
+    console.log(`pulling Object : ${util.format(jobSerial)}`);
     let jobObject = getJobObject(jobSerial.id);
     if (!jobObject)
         return;
@@ -127,7 +127,6 @@ function pull(_jobSerial) {
     logger.debug(`Pulling for ${jobObject.id}:stderr`)
     ss(socket).emit(`${jobObject.id}:stdout`, jobObject.stdout);
     ss(socket).emit(`${jobObject.id}:stderr`, jobObject.stderr);
-
     jobObject.emit('completed', jobObject.stdout, jobObject.stderr, jobObject);
 
         /* raise following event
@@ -151,8 +150,7 @@ export function push(data) {
 
     // Creating a proxyJob object
     //et jobOpt:jobLib.jobProxyInterface =
-
-
+    logger.silly("MS-client::PUSH");
     //
     let jobOpt = {
         id:undefined,
@@ -173,7 +171,9 @@ export function push(data) {
         }
         jobOpt[k] = data[k];
     }
+    console.log(`Got that\n${util.format(data)}`);
     logger.debug(`Passing following jobOpt to jobProxy constructor\n${util.format(jobOpt)}`);
+    console.log(`Passing following jobOpt to jobProxy constructor\n${util.format(jobOpt)}`);
     let job = new jobLib.jobProxy(jobOpt);
     data.id = job.id;
     jobsPool[job.id] = job;
@@ -199,8 +199,18 @@ export function push(data) {
     // Registering event
 
     socket.on('jobStart',(data)=>{
-        console.log('received jobStart');
-        console.log(`${util.format(data)}`);
+        //console.log(`${util.format(data)}`);
+        data = JSON.parse(data);
+       // console.log(JSON.parse(data).id);
+        let jRef = getJobObject(data.id);
+        if (!jRef) {
+            logger.error('Unregistred job id ${data.id} emitted jobStart on socket');
+            return;
+        }
+        if (job == jRef ) {
+        /*logger.silly*/console.log(`received jobStart (listener is job:${job.id})`);
+        /*logger.silly*/console.log(`${util.format(data)}`);
+        }
     });
 
     return job;

@@ -29,7 +29,7 @@ export class nixLikeEngine implements engineLib.engineInterface {
 
     generateHeader (jobID:string, jobProfileKey:string|undefined, workDir:string):string {
 
-        return '# This is local default header' +  getPreprocessorString (jobProfileKey, localProfiles/*,jobID,*/);
+        return "# This is local default header\n" +  getPreprocessorString (jobProfileKey, localProfiles/*,jobID,*/);
     }
 
     list ():events.EventEmitter {

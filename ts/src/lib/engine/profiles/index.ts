@@ -28,6 +28,7 @@ export function isProfile(obj: any): obj is profileInterface {
 export function defaultGetPreprocessorString (profileKey:string|undefined, profileContainer:profileInterface):string {
     let container:{} = defaultGetPreprocessorContainer(profileKey, profileContainer);
     let string:string = _preprocessorDump(container);
+    string += "export JOBPROFILE=\"" + profileKey + "\"\n";
     return string;
 }
 
