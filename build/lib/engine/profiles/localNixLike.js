@@ -9,6 +9,12 @@ let profiles = {
             "system": "nix",
             "waitingTime": "10",
         }
+    },
+    "dummy": {
+        "WORKDIR": "$PWD",
+        "user": "buddy",
+        "system": "nix",
+        "waitingTime": "10"
     }
 };
 exports.default = profiles;

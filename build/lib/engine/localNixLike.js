@@ -1,7 +1,7 @@
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
-};
+}
 Object.defineProperty(exports, "__esModule", { value: true });
 const events = require("events");
 const path = require("path");
@@ -16,7 +16,7 @@ class nixLikeEngine {
         this.specs = 'emulate';
     }
     generateHeader(jobID, jobProfileKey, workDir) {
-        return '# This is local default header' + index_js_1.defaultGetPreprocessorString(jobProfileKey, localProfiles /*,jobID,*/);
+        return "# This is local default header\n" + index_js_1.defaultGetPreprocessorString(jobProfileKey, localProfiles /*,jobID,*/);
     }
     list() {
         let emitter = new events.EventEmitter();

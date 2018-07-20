@@ -185,7 +185,7 @@ function jobWarden() {
         logger.silly(`${util.format(d)}`);
         for (let job of liveMemory.startedJobiterator()) {
             let jobSel = { jobObject: job };
-            if (d.nameUUID.indexOf(job.id) === -1) { // if key is not found in listed jobs
+            if (d.nameUUID.indexOf(job.id) === -1) {
                 job.MIA_jokers -= 1;
                 logger.warn(`The job ${job.id} missing from queue! Jokers left is ${job.MIA_jokers}`);
                 if (job.MIA_jokers === 0) {
@@ -444,10 +444,14 @@ function _parseMessage(msg) {
     liveMemory.jobSet(uStatus, jobSel);
     let job = liveMemory.getJob(jobSel);
     if (job) {
-        if (uStatus === 'START')
+        if (uStatus === 'START') {
             job.jEmit('jobStart', job);
-        else if (uStatus === "FINISHED")
+            logger.debug("parsing Message ==> emit jobStart");
+        }
+        else if (uStatus === "FINISHED") {
+            logger.debug("parsing Message ==> FINISHED && pullin");
             _pull(job); //TO DO
+        }
         //logger.error(`TO DO`);
     }
 }

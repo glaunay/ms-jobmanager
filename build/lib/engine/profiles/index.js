@@ -22,6 +22,7 @@ exports.isProfile = isProfile;
 function defaultGetPreprocessorString(profileKey, profileContainer) {
     let container = defaultGetPreprocessorContainer(profileKey, profileContainer);
     let string = _preprocessorDump(container);
+    string += "export JOBPROFILE=\"" + profileKey + "\"\n";
     return string;
 }
 exports.defaultGetPreprocessorString = defaultGetPreprocessorString;

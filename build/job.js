@@ -239,6 +239,7 @@ class jobProxy extends events.EventEmitter {
                 stdout = this.stdout();
             }
             Promise.all([stdout, stderr]).then((results) => {
+                logger.silly("Emitting completed event");
                 this.emit('completed', ...results);
             });
         }
@@ -263,7 +264,7 @@ class jobProxy extends events.EventEmitter {
             let _args = args.map((e) => {
                 return JSON.stringify(e); // Primitive OR 
             });
-            //logger.warn(`socket emiting event ${eName}`);
+            logger.silly(`socket emiting event ${eName}`);
             this.socket.emit(eName, ..._args);
         }
         return true;
@@ -280,6 +281,7 @@ class jobObject extends jobProxy {
         // Opt, set by object setter
         this.emulated = false;
         this.cwdClone = false;
+        console.log("CC JOB :: " + this.jobProfile);
         this.engine = jobOpt.engine;
         //  this.queueBin =  jobOpt.queueBin;
         this.port = jobOpt.port;

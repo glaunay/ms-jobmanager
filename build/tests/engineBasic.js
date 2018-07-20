@@ -21,8 +21,6 @@ program
     .option('-w, --warehouse [address]', 'Warehouse address', '127.0.0.1')
     .option('-x, --whport <n>', 'Warehouse port', parseInt)
     .option('-t, --whtest', 'Warehouse connection test')
-    /*.option('-n, --worker [number]', 'Number of dummy jobs to push-in', 1)
-    .option('-r, --replicate', 'Ask for identical jobs')*/
     .parse(process.argv);
 logger_js_1.logger.info("\t\tStarting public JobManager MicroService");
 let testParameters = {
