@@ -6,7 +6,7 @@ let io = require('socket.io-client');
 //import cType = require('./commonTypes.js');
 let fs = require('fs');
 let ss = require('socket.io-stream');
-let logger = require('winston');
+let { logger } = require('winston');
 let util = require('util');
 let socket;
 let jobsPool = {};
@@ -44,7 +44,7 @@ exports.start = start;
  Returns reference to a live jobProxy object
 */
 function getJobObject(uuid) {
-    logger.debug(`Looking in pool for id ${uuid}`);
+    logger.silly(`Looking in pool for id ${uuid}`);
     if (jobsPool.hasOwnProperty(uuid))
         return jobsPool[uuid];
     logger.error(`job id ${uuid} is not found in local jobsPool`);
@@ -98,7 +98,6 @@ function bindForwardEvent(socket) {
 function pull(_jobSerial) {
     let jobSerial = JSON.parse(_jobSerial);
     logger.debug(`pulling Object : ${util.format(jobSerial)}`);
-    console.log(`pulling Object : ${util.format(jobSerial)}`);
     let jobObject = getJobObject(jobSerial.id);
     if (!jobObject)
         return;
@@ -148,9 +147,9 @@ function push(data) {
         }
         jobOpt[k] = data[k];
     }
-    console.log(`Got that\n${util.format(data)}`);
+    // console.log(`Got that\n${util.format(data)}`);
     logger.debug(`Passing following jobOpt to jobProxy constructor\n${util.format(jobOpt)}`);
-    console.log(`Passing following jobOpt to jobProxy constructor\n${util.format(jobOpt)}`);
+    //console.log(`Passing following jobOpt to jobProxy constructor\n${util.format(jobOpt)}`);
     let job = new jobLib.jobProxy(jobOpt);
     data.id = job.id;
     jobsPool[job.id] = job;
@@ -177,8 +176,8 @@ function push(data) {
             return;
         }
         if (job == jRef) {
-            /*logger.silly*/ console.log(`received jobStart (listener is job:${job.id})`);
-            /*logger.silly*/ console.log(`${util.format(data)}`);
+            logger.silly(`received jobStart (listener is job:${job.id})`);
+            logger.silly(`${util.format(data)}`);
         }
     });
     return job;
