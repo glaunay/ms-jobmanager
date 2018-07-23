@@ -6,7 +6,7 @@ let io = require('socket.io-client');
 //import cType = require('./commonTypes.js');
 let fs = require('fs');
 let ss = require('socket.io-stream');
-let { logger } = require('winston');
+let logger = require('winston');
 let util = require('util');
 let socket;
 let jobsPool = {};
