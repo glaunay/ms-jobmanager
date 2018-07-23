@@ -21,7 +21,10 @@ program
     .option('-w, --warehouse [address]', 'Warehouse address', '127.0.0.1')
     .option('-x, --whport <n>', 'Warehouse port', parseInt)
     .option('-t, --whtest', 'Warehouse connection test')
+    .option('-o, --logFile [filePath]', 'Set log file location', logger_js_1.setLogFile)
     .parse(process.argv);
+if (!program.logFile)
+    logger_js_1.setLogFile('./jobManager.log');
 logger_js_1.logger.info("\t\tStarting public JobManager MicroService");
 let testParameters = {
     cacheDir: program.cache,
@@ -32,16 +35,6 @@ let testParameters = {
     warehouseAddress: program.warehouse,
     warehousePort: program.whport ? program.whport : 7688,
     warehouseTest: program.whtest ? true : false
-};
-let jobProxyOpt = {
-    'script': '../scripts/local_test.sh',
-    'inputs': {
-        'file': '../data/file.txt',
-        'file2': '../data/file2.txt'
-    },
-    'exportVar': {
-        'waitingTime': '25'
-    }
 };
 if (program.self) {
     logger_js_1.logger.info(`Performing ${program.self} self test, MS capabilities are disabled`);

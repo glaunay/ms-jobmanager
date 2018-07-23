@@ -1,5 +1,5 @@
 import jobManagerCore = require('../index.js');
-import {logger, setLogLevel} from '../logger.js';
+import {logger, setLogLevel, setLogFile} from '../logger.js';
 import program = require('commander');
 import {selfTest} from './testTools';
 
@@ -20,9 +20,13 @@ program
   .option('-w, --warehouse [address]', 'Warehouse address', '127.0.0.1')
   .option('-x, --whport <n>', 'Warehouse port', parseInt)
   .option('-t, --whtest', 'Warehouse connection test')
+  .option('-o, --logFile [filePath]', 'Set log file location', setLogFile)
   /*.option('-n, --worker [number]', 'Number of dummy jobs to push-in', 1)
   .option('-r, --replicate', 'Ask for identical jobs')*/
 .parse(process.argv);
+
+if (!program.logFile)
+    setLogFile('./jobManager.log');
 
 logger.info("\t\tStarting public JobManager MicroService");
 
@@ -37,16 +41,7 @@ let testParameters = {
     warehouseTest: program.whtest ? true : false
 };
 
-let jobProxyOpt:any = {
-    'script' : '../scripts/local_test.sh',
-    'inputs' : {
-        'file' : '../data/file.txt',
-        'file2' : '../data/file2.txt'
-    },
-    'exportVar' : {
-        'waitingTime' : '25'
-    }
-}
+
 if(program.self) {
     logger.info(`Performing ${program.self} self test, MS capabilities are disabled`);
     testParameters.microServicePort = undefined;

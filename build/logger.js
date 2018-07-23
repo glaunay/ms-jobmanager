@@ -1,39 +1,56 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const logger = require("winston");
-exports.logger = logger;
-//var Loggly = require('winston-loggly').Loggly;
-//var loggly_options={ subdomain: "mysubdomain", inputToken: "efake000-000d-000e-a000-xfakee000a00" }
-//logger.add(Loggly, loggly_options);
-//logger.add(logger.transports.File, { filename: "./logs/production.log" });
-//logger.info('Chill Winston, the logs are being captured 2 ways');
-//module.exports=logger;
-logger.setLevels({
-    error: 0,
-    warn: 1,
-    info: 2,
-    verbose: 3,
-    debug: 4,
-    silly: 5
+const winston = require("winston");
+exports.logger = winston;
+const config = {
+    levels: {
+        error: 0,
+        debug: 1,
+        warn: 2,
+        data: 3,
+        info: 4,
+        verbose: 5,
+        silly: 6,
+        custom: 7
+    },
+    colors: {
+        error: 'red',
+        debug: 'blue',
+        warn: 'yellow',
+        data: 'grey',
+        info: 'green',
+        verbose: 'cyan',
+        silly: 'magenta',
+        custom: 'yellow'
+    }
+};
+winston.addColors(config.colors);
+function createFileTransport(path = "./myNodeApp.log") {
+    let files = new winston.transports.File({ filename: path,
+        format: winston.format.combine(winston.format.simple()) });
+    return files;
+}
+let consoleT = new winston.transports.Console({
+    format: winston.format.combine(winston.format.colorize(), winston.format.simple())
 });
-logger.addColors({
-    debug: 'green',
-    info: 'cyan',
-    verbose: 'gray',
-    silly: 'magenta',
-    warn: 'yellow',
-    error: 'red'
-});
-logger.remove(logger.transports.Console);
-logger.add(logger.transports.Console, { level: 'info', colorize: true });
-logger.add(logger.transports.File, { filename: "./logs/devel.log" });
+winston.add(consoleT);
+//let fileDefaultTransport:winston.transports.FileTransportInstance = createFileTransport();
+//winston.add(fileDefaultTransport);
+let logLevel = 'info';
 function isLogLvl(value) {
-    return value === 'debug' || value === 'info' || value === 'verbose' || value === 'silly'
-        || value === 'warn' || value === 'error';
+    return config.levels.hasOwnProperty(value);
 }
 function setLogLevel(value) {
     if (!isLogLvl(value))
         throw `Unrecognized logLvel "${value}"`;
-    logger.level = value;
+    logLevel = value;
+    winston.level = logLevel;
 }
 exports.setLogLevel = setLogLevel;
+function setLogFile(logFilePath) {
+    //winston.remove(fileDefaultTransport);
+    let fileCustomTransport = createFileTransport(logFilePath);
+    winston.add(fileCustomTransport);
+    //winston.level = logLevel;
+}
+exports.setLogFile = setLogFile;
