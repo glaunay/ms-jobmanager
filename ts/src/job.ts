@@ -182,8 +182,10 @@ export class jobInputs extends events.EventEmitter {
                     let datum:string = <string>buffer[key];
                     fs.lstatSync(datum).isFile();
                     let k = path.basename(datum).replace(/\.[^/.]+$/, ""); 
+                    k = key; // GL Aug2018, HOTFIX from taskobject, maybe will break JM -- MS side let'see
                     this.streams[k] = fs.createReadStream(datum);
                     logger.debug(`${buffer[key]} is a file, stream assigned to ${k}`);
+
                 } catch(e) {
                     logger.warn(`Provided input named ${key} is not a file, assuming a string`);                    
                   // Handle error
