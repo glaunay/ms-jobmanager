@@ -79,6 +79,10 @@ class jobAccumulator extends events.EventEmitter {
                     ss(socket, {}).on(data.id + '/' + inputEvent, (stream) => {
                         jobOpt.inputs[inputEvent].pipe(stream);
                     });
+                logger.silly(`EMITTING THIS ORIGINAL ${jobWrap.job.id}\n${util.format(jobWrap.data)}`);
+            }
+            else {
+                logger.silly(`EMITTING THIS RESUB ${jobWrap.job.id}\n${util.format(jobWrap.data)}`);
             }
             jobWrap.status = 'sent';
             socket.emit('newJobSocket', jobWrap.data);
@@ -160,6 +164,7 @@ class jobAccumulator extends events.EventEmitter {
             self.jobsPromisesReject[d.jobID]({ 'type': 'bouncing', jobID: d.jobID });
         });
         socket.on('granted', (d) => {
+            logger.debug(`Job ${util.format(d)} was granted !`);
             self.jobsPromisesResolve[d.jobID](d.jobID);
         });
         socket.on('lostJob', (jobSerial) => {
@@ -237,40 +242,14 @@ function pull(_jobSerial) {
         return;
     logger.debug('completed event on socket');
     logger.silly(`${util.format(jobObject)}`);
-    let buffer_stdout = ss.createStream();
-    let buffer_stderr = ss.createStream();
+    jobObject.stdout = ss.createStream();
+    jobObject.stderr = ss.createStream();
     logger.debug(`Pulling for ${jobObject.id}:stdout`);
     logger.debug(`Pulling for ${jobObject.id}:stderr`);
-    ss(socket).emit(`${jobObject.id}:stdout`, buffer_stdout);
-    ss(socket).emit(`${jobObject.id}:stderr`, buffer_stderr);
-    // We try to limit file open descriptor on JM side, by draining the streams and closing socket
-    /*jobObject.stdout = new stream.Transform();
-    jobObject.stderr = new stream.Transform();*/
-    jobObject.stdout = through2(function (chunk /*, enc, callback*/) {
-        this.push(chunk);
-        //callback()
-    });
-    jobObject.stderr = through2(function (chunk /*, enc, callback*/) {
-        this.push(chunk);
-        //callback()
-    });
-    buffer_stdout.pipe(jobObject.stdout);
-    buffer_stdout.on('finish', () => {
-        logger.silly("socket stream out exhausted");
-        buffer_stderr.pipe(jobObject.stderr);
-        buffer_stderr.on('finish', () => {
-            logger.silly("socket stream err exhausted");
-            socket.emit('drained', { jobID: jobSerial.id });
-            /*
-            logger.info('Closing socket');
-            socket.close();
-            */
-            jobObject.emit('completed', jobObject.stdout, jobObject.stderr, jobObject);
-        });
-    });
-    /* raise following event
-     'completed', {Stream}stdio, {Stream}stderr, {Object}job // this event raising is delegated to jobManager
-     */
+    ss(socket).emit(`${jobObject.id}:stdout`, jobObject.stdout);
+    ss(socket).emit(`${jobObject.id}:stderr`, jobObject.stderr);
+    jobObject.emit('completed', jobObject.stdout, jobObject.stderr, jobObject);
+    return;
 }
 function push(data) {
     let jobOpt = {

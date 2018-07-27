@@ -512,10 +512,12 @@ function _copyScript(job, fname, emitter) {
     //if (!job.script)
     //    return;
     let src;
-    if (isStream(job.script))
+    if (isStream(job.script)) {
         src = job.script;
-    else
+    }
+    else {
         src = fs.createReadStream(job.script);
+    }
     src.on("error", function (err) {
         job.jEmit('scriptReadError', err, job);
     });

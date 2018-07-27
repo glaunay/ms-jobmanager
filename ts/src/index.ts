@@ -340,31 +340,29 @@ function _checkJobBean(obj:any):boolean{
 }
 
 // New job packet arrived on MS socket, 1st arg is streamMap, 2nd the socket
-function pushMS(data:any) {
+function pushMS(data:any, socket:any) {
     logger.debug(`newJob Packet arrived w/ ${util.format(data)}`);
     logger.silly(` Memory size vs nWorker :: ${liveMemory.size()} <<>> ${nWorker}`);
     if (liveMemory.size("notBound") >= nWorker) {
         logger.debug("must refuse packet, max pool size reached");
-        logger.debug(`Bouncing ${util.format(data)}`);
-        jmServer.bouncer(data);
+        jmServer.bouncer(data, socket);
         return;
         // No early exit yet
     }
     
-    jmServer.granted(data);
-    if(jobLib.isJobOptProxy(data)) {
-        logger.debug(`jobOpt successfully received`);
-    }
-    let jobProfile = data.jobProfile;
-    data.fromConsumerMS = true;
+    
+    jmServer.granted(data, socket).then((_data)=> {        
 
-//pool size
+        let jobProfile = _data.jobProfile;
+        _data.fromConsumerMS = true;
+        //pool size
 
-
-    let job = push(jobProfile, data);
-
-
-
+        if(jobLib.isJobOptProxy(_data)) {
+            logger.debug(`jobOpt successfully decoded`);
+        }
+        let job = push(jobProfile, _data);
+    });
+    
 }
 
 /* weak typing of the jobOpt  parameter */

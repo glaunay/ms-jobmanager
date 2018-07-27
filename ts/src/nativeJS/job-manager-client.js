@@ -9,26 +9,19 @@ let util = require('util');
 let socket;
 let stream = require('stream');
 let through2 = require('through2');
-
 let events = require('events');
-
 /*
     Defining object to take care of job sumbissions
 */
-
-
-
 class jobAccumulator extends events.EventEmitter {
-    jobsPool = {};
-    JMsocket = undefined;
-    JMstatus = 'busy';
-    jobsQueue = [];
-    jobsPromisesReject = {};
-    jobsPromisesResolve = {};
     constructor() {
         super();
-
-    
+        this.jobsPool = {};
+        this.JMsocket = undefined;
+        this.JMstatus = 'busy';
+        this.jobsQueue = [];
+        this.jobsPromisesReject = {};
+        this.jobsPromisesResolve = {};
         // running managment loop;
         //setInterval(this.pulse(), 500);
     }
@@ -42,81 +35,77 @@ class jobAccumulator extends events.EventEmitter {
         let c = 0;
         for (let jobWrap of this.jobsQueue)
             if (jobWrap.status == 'sent')
-                c++; 
+                c++;
         return c;
     }
-    _getWaitingJob() {
+    _getWaitingJob() {
         for (let jobWrap of this.jobsQueue)
             if (jobWrap.status == 'idle' || jobWrap.status == 'bounced')
                 return jobWrap;
-        
         return undefined;
     }
-    popQueue() { //Take the 1st job idle or bounced;
+    popQueue() {
         //Promise resolution is delegated to the socket listener in bind method
         let jobWrap = this._getWaitingJob();
         let self = this;
-        let p = new Promise((resolve, reject) => { 
+        let p = new Promise((resolve, reject) => {
             self.jobsPromisesResolve[jobWrap.job.id] = resolve;
             self.jobsPromisesReject[jobWrap.job.id] = reject;
-            if (!jobWrap) {
+            if (!jobWrap) {
                 logger.debug("Queue exhausted");
-                reject({ type : 'exhausted'});
+                reject({ type: 'exhausted' });
                 return;
             }
-            
             // if bounced status, stream are already setup
             if (jobWrap.status == 'idle') {
-            // Building streams for newly submitted job
-            // test data refers to a list of file
-            // We build a litteral with the same keys but with values that are streams instead of path to file
-            // Then we bind stream to the socket using the litteral keys to define the socket event names
-            // We handle provided key/value pairs differently
-            //  script -> a readable stream
-            // inputs -> a string map of readablestream
-            // module -> a list of string
-            // exportVars -> a string map
-            // if a cmd is passed we make it a stream and assign it to script
-
+                // Building streams for newly submitted job
+                // test data refers to a list of file
+                // We build a litteral with the same keys but with values that are streams instead of path to file
+                // Then we bind stream to the socket using the litteral keys to define the socket event names
+                // We handle provided key/value pairs differently
+                //  script -> a readable stream
+                // inputs -> a string map of readablestream
+                // module -> a list of string
+                // exportVars -> a string map
+                // if a cmd is passed we make it a stream and assign it to script
                 let data = jobWrap.data;
                 let jobOpt = jobWrap.jobOpt;
                 let job = jobWrap.job;
-
                 jobOpt = buildStreams(jobOpt, job);
                 logger.debug(`jobOpt passed to socket w/ id ${data.id}:\n${util.format(jobOpt)}`);
-        
                 ss(socket, {}).on(data.id + '/script', (stream) => { jobOpt.script.pipe(stream); });
                 for (let inputEvent in jobOpt.inputs)
                     ss(socket, {}).on(data.id + '/' + inputEvent, (stream) => {
                         jobOpt.inputs[inputEvent].pipe(stream);
-                });
+                    });
+                logger.silly(`EMITTING THIS ORIGINAL ${jobWrap.job.id}\n${util.format(jobWrap.data)}`);
+            } else {
+                logger.silly(`EMITTING THIS RESUB ${jobWrap.job.id}\n${util.format(jobWrap.data)}`);
             }
+            jobWrap.status = 'sent';
 
-            jobWrap.status = 'sent';    
+          
+            
+            
             socket.emit('newJobSocket', jobWrap.data);
         });
-
         return p;
     }
-    appendToQueue(data, jobOpt){
+    appendToQueue(data, jobOpt) {
         let job = new jobLib.jobProxy(jobOpt);
         this.jobsPool[job.id] = job;
         data.id = job.id;
-        
-
-        this.jobsQueue.push( { 
-            'job' : job,
-            'data' : data,
-            'jobOpt' : jobOpt,
-            'status' : 'idle'
+        this.jobsQueue.push({
+            'job': job,
+            'data': data,
+            'jobOpt': jobOpt,
+            'status': 'idle'
         });
-    
         if (this.isIdle())
-            this.pulse();    
-
+            this.pulse();
         return job;
     }
-    isIdle() { // Job Accumulator is IDLE if no queue element is in the sent status
+    isIdle() {
         for (let jobWrap of this.jobsQueue)
             if (jobWrap.status == 'sent')
                 return false;
@@ -125,41 +114,39 @@ class jobAccumulator extends events.EventEmitter {
     deleteJob(jobID) {
         if (this.jobsPool.hasOwnProperty(jobID)) {
             delete (this.jobsPool[jobID]);
-            delete(this.jobsPromisesResolve[jobID]);
-            delete(this.jobsPromisesReject[jobID]);
+            delete (this.jobsPromisesResolve[jobID]);
+            delete (this.jobsPromisesReject[jobID]);
             return true;
         }
         logger.error(`Can't remove job, its id ${jobID} is not found in local jobsPool`);
         return false;
     }
-    pulse(){ // Try to consume jobQueue
+    pulse() {
         if (this.jobsQueue.length == 0)
             return;
-
-        if (this._countSentJob > 0) // Only one job awaiting granted access at a time
+        if (this._countSentJob > 0)
             return;
         let self = this;
         // Maybe done w/ async/await
-        this.popQueue().then((jobID)=>{ 
+        this.popQueue().then((jobID) => {
             self._getJobQueueWrapper(jobID).status = 'granted';
             self.pulse(); // Trying to send next one asap
-        }).catch((err) => {        
+        }).catch((err) => {
             if (err.type == 'bouncing') {
-                self._getJobQueueWrapper(err.jobID).status = 'bounced';            
-                setTimeout(()=>{self.pulse();}, 1500);   // W8 and resend
+                self._getJobQueueWrapper(err.jobID).status = 'bounced';
+                setTimeout(() => { self.pulse(); }, 1500); // W8 and resend
             }
         });
     }
-    flush (jobID) {
+    flush(jobID) {
         let job = this.getJobObject(jobID);
-        if(!job)
+        if (!job)
             return undefined;
         this._getJobQueueWrapper(jobID).status = 'completed';
         this.deleteJob(jobID);
-      
         return job;
     }
-    getJobObject(uuid){
+    getJobObject(uuid) {
         if (this.jobsPool.hasOwnProperty(uuid))
             return this.jobsPool[uuid];
         logger.error(`job id ${uuid} is not found in local jobsPool`);
@@ -169,21 +156,19 @@ class jobAccumulator extends events.EventEmitter {
     bind(socket) {
         logger.debug("Binding accumulator to socket");
         this.socket = socket;
-
         socket.on('jobStart', (data) => {
             // Maybe do smtg
             // data = JSON.parse(data);
         });
         let self = this;
-        socket.on('bounced', (d) => {            
+        socket.on('bounced', (d) => {
             logger.debug(`Job ${util.format(d)} was bounced !`);
-            self.jobsPromisesReject[d.jobID]({ 'type' : 'bouncing', jobID : d.jobID });
+            self.jobsPromisesReject[d.jobID]({ 'type': 'bouncing', jobID: d.jobID });
         });
-        socket.on('granted', (d) => {            
+        socket.on('granted', (d) => {
+            logger.debug(`Job ${util.format(d)} was granted !`);
             self.jobsPromisesResolve[d.jobID](d.jobID);
         });
-
-
         socket.on('lostJob', (jobSerial) => {
             let jRef = this.getJobObject(jobSerial.id);
             if (!jRef)
@@ -217,18 +202,10 @@ class jobAccumulator extends events.EventEmitter {
                 jRef.emit('ready');
             });
         });
-
         socket.on('completed', pull);
-
         //socket.on('centralStatus', (d) => { this.JMstatus = d.status; });
     }
-
 }
-
-
-
-
-
 /*
     establish socket io connection with job-manager MS (via job-manager-server implementation)
     raise the "ready";
@@ -248,7 +225,6 @@ class jobAccumulator extends events.EventEmitter {
 function start(opt) {
     let evt = new EventEmitter();
     jobAccumulator = new jobAccumulator();
-
     //socket.connect('http://localhost:8080');
     // KINDA USELESS FOR NOW
     let url = 'http://' + opt.TCPip + ':' + opt.port;
@@ -257,13 +233,9 @@ function start(opt) {
         logger.debug(`manage to connect to jobmanager core microservice at ${url}`);
         evt.emit("ready");
         jobAccumulator.bind(socket);
-
     });
-   
     return evt;
 }
-
-
 function pull(_jobSerial) {
     let jobSerial = JSON.parse(_jobSerial);
     logger.debug(`pulling Object : ${util.format(jobSerial)}`);
@@ -273,54 +245,19 @@ function pull(_jobSerial) {
     logger.debug('completed event on socket');
     logger.silly(`${util.format(jobObject)}`);
 
-    let buffer_stdout = ss.createStream();
-    let buffer_stderr = ss.createStream();
+    jobObject.stdout = ss.createStream();
+    jobObject.stderr = ss.createStream();
+
     logger.debug(`Pulling for ${jobObject.id}:stdout`);
     logger.debug(`Pulling for ${jobObject.id}:stderr`);
-    ss(socket).emit(`${jobObject.id}:stdout`, buffer_stdout);
-    ss(socket).emit(`${jobObject.id}:stderr`, buffer_stderr);
-
-
-    // We try to limit file open descriptor on JM side, by draining the streams and closing socket
-
-    /*jobObject.stdout = new stream.Transform();
-    jobObject.stderr = new stream.Transform();*/
-
-    jobObject.stdout = through2(function (chunk/*, enc, callback*/) {
-        this.push(chunk);
-     
-        //callback()
-    });
-    jobObject.stderr = through2(function (chunk/*, enc, callback*/) {
-        this.push(chunk);
-     
-        //callback()
-    });
-
-    buffer_stdout.pipe(jobObject.stdout);
-    buffer_stdout.on('finish',()=> {
-
-        logger.silly("socket stream out exhausted");
-        buffer_stderr.pipe(jobObject.stderr);
-        buffer_stderr.on('finish',()=> {
-            logger.silly("socket stream err exhausted");
-            socket.emit('drained', {jobID : jobSerial.id})
-            /*
-            logger.info('Closing socket');            
-            socket.close();
-            */
-            jobObject.emit('completed', jobObject.stdout, jobObject.stderr, jobObject);
-        })
-    });
-   
-
-    /* raise following event
-     'completed', {Stream}stdio, {Stream}stderr, {Object}job // this event raising is delegated to jobManager
-     */
+    ss(socket).emit(`${jobObject.id}:stdout`, jobObject.stdout );
+    ss(socket).emit(`${jobObject.id}:stderr`, jobObject.stderr);
+  
+   jobObject.emit('completed', jobObject.stdout, jobObject.stderr, jobObject);
+   return;
 }
-
 function push(data) {
-       let jobOpt = {
+    let jobOpt = {
         id: undefined,
         script: undefined,
         cmd: undefined,
@@ -341,13 +278,10 @@ function push(data) {
     }
     // console.log(`Got that\n${util.format(data)}`);
     logger.debug(`Passing following jobOpt to jobProxy constructor\n${util.format(jobOpt)}`);
-
-   
-    let job  = jobAccumulator.appendToQueue(data, jobOpt);
+    let job = jobAccumulator.appendToQueue(data, jobOpt);
 
     return job;
 }
-
 function buildStreams(data, job) {
     logger.debug(`-->${util.format(data)}`);
     //let jobInput = new jobLib.jobInputs(data.inputs);
@@ -368,12 +302,10 @@ function buildStreams(data, job) {
     sMap.inputs = jobInput.getStreamsMap();
     data.script = sMap.script;
     data.inputs = sMap.inputs;
-   /* logger.debug("streams buildt");
-    logger.debug(typeof (sMap.script));
-    logger.debug(`${util.format(sMap.script)}`);*/
+    /* logger.debug("streams buildt");
+     logger.debug(typeof (sMap.script));
+     logger.debug(`${util.format(sMap.script)}`);*/
     return data;
 }
-
-
 exports.push = push;
 exports.start = start;

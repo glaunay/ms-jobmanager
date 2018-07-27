@@ -700,10 +700,11 @@ function _copyScript(job : jobObject, fname : string, emitter : events.EventEmit
     //if (!job.script)
     //    return;
     let src : streamLib.Readable;
-    if(isStream(job.script))
-        src = <streamLib.Readable>job.script;
-    else
+    if(isStream(job.script)) {
+        src = <streamLib.Readable>job.script;        
+    } else {
         src = fs.createReadStream(<string>job.script);
+    }
     src.on("error", function(err) {
         job.jEmit('scriptReadError', err, job);
     });

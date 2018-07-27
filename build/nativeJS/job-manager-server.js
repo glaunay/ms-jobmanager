@@ -37,31 +37,10 @@ function listen(port) {
             logger.info(`job ${d.jobID} has drained its socket`);
         });*/
         socket.on('newJobSocket', (data) => {
-            let socketNamespace = data.id;
             logger.debug(`========\n=============\nnewJobSocket received container:\n${util.format(data)}`);
-            let newData = {
-                script: ss.createStream(),
-                inputs: {}
-            };
-            for (let inputSymbol in data.inputs) {
-                let filePath = data.inputs[inputSymbol];
-                logger.debug(`-->${filePath}`);
-                newData.inputs[inputSymbol] = ss.createStream();
-                logger.debug(`ssStream emission for input symbol '${inputSymbol}'`);
-                ss(socket).emit(socketNamespace + "/" + inputSymbol, newData.inputs[inputSymbol]);
-                //logger.warn('IeDump from' +  socketNamespace + "/" + inputSymbol);
-                //newData.inputs[inputSymbol].pipe(process.stdout)
-            }
-            ss(socket).emit(socketNamespace + "/script", newData.script);
-            //logger.error(`TOTOT2\n${util.format(newData)}`);
-            for (let k in data) {
-                if (k !== 'inputs' && k !== 'script')
-                    newData[k] = data[k];
-            }
-            newData.socket = socket;
             // Emitting the corresponding event/Symbols for socket streaming
-            logger.debug(`========\n=============\nnewJobSocket emmitting container:\n${util.format(newData)}`);
-            evt.emit('newJobSocket', newData);
+            //logger.debug(`========\n=============\nnewJobSocket emmitting container:\n${util.format(newData)}`);
+            evt.emit('newJobSocket', data, socket);
         });
         socket.on('disconnect', function () {
             removeSocket(socketID);
@@ -108,16 +87,43 @@ exports.socketPull = socketPull;
 /*
  For now we dont do much just boreadcasting were overloaded
 */
-function bouncer(data) {
-    logger.silly(`I wanna bounce ${data.id}`);
+function bouncer(data, socket) {
+    logger.debug(`Bouncing ${data.id}`);
     broadcast('busy');
-    data.socket.emit('bounced', { jobID: data.id });
+    socket.emit('bounced', { jobID: data.id });
 }
 exports.bouncer = bouncer;
-function granted(data) {
-    data.socket.emit('granted', { jobID: data.id });
-    logger.silly(`i grant access to ${util.format(data.id)}`);
-    broadcast('available');
+// We build streams only at granted
+function granted(data, socket) {
+    return new Promise((resolve, reject) => {
+        setTimeout(() => {
+            logger.debug(`i grant access to ${util.format(data.id)}`);
+            broadcast('available');
+            let socketNamespace = data.id;
+            let newData = {
+                script: ss.createStream(),
+                inputs: {}
+            };
+            for (let inputSymbol in data.inputs) {
+                //let filePath = data.inputs[inputSymbol];
+                //logger.debug(`-->${filePath}`);
+                newData.inputs[inputSymbol] = ss.createStream();
+                logger.debug(`ssStream emission for input symbol '${inputSymbol}'`);
+                ss(socket).emit(socketNamespace + "/" + inputSymbol, newData.inputs[inputSymbol]);
+                //logger.warn('IeDump from' +  socketNamespace + "/" + inputSymbol);
+                //newData.inputs[inputSymbol].pipe(process.stdout)
+            }
+            ss(socket).emit(socketNamespace + "/script", newData.script);
+            //logger.error(`TOTOT2\n${util.format(newData)}`);
+            for (let k in data) {
+                if (k !== 'inputs' && k !== 'script')
+                    newData[k] = data[k];
+            }
+            newData.socket = socket;
+            socket.emit('granted', { jobID: data.id });
+            resolve(newData);
+        }, 250);
+    });
 }
 exports.granted = granted;
 function openBar() {
