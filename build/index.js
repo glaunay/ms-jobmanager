@@ -14,6 +14,9 @@ const cType = require("./commonTypes.js");
 const jmServer = require("./nativeJS/job-manager-server.js");
 const liveMemory = require("./lib/pool.js");
 const clientWH = require("ms-warehouse");
+function eLiveMemory() { return liveMemory; }
+exports.eLiveMemory = eLiveMemory;
+;
 //let search:warehouse.warehousSearchInterface;
 let engine; // to type with Engine contract function signature
 let microEngine = new engineLib.dummyEngine(); // dummy engine used by jobProxy instance
@@ -36,6 +39,7 @@ let core;
 let wardenPulse = 5000;
 let warden;
 var cacheDir = null;
+let nWorker = 10; // running job max poolsize
 let eventEmitter = new events.EventEmitter();
 let exhaustBool = false; // set to true at any push, set to false at exhausted event raise
 let emulator = false; // Trying to keep api/events intact while running job as fork on local
@@ -128,6 +132,8 @@ ${util.format(opt)}\n`;
             logger.debug('Connection on microservice consumer socket');
         });
     }
+    if (opt.nWorker)
+        nWorker = opt.nWorker;
     if (opt.cycleLength)
         wardenPulse = parseInt(opt.cycleLength);
     if (opt.forceCache)
@@ -172,6 +178,7 @@ scheduler_id : ${scheduler_id}
 engine type : ${engine.specs}
 internal ip/port : ${TCPip}/${TCPport}
 consumer port : ${opt.microServicePort}
+worker pool size : ${nWorker}
 `);
         eventEmitter.emit("ready");
     })
@@ -193,6 +200,8 @@ function jobWarden() {
                     //jobTmp.obj.emitter = curr_job.obj.emitter; // keep same emitter reference
                     let tmpJob = job;
                     liveMemory.removeJob(jobSel);
+                    if (liveMemory.size("notBound") < nWorker)
+                        jmServer.openBar();
                     tmpJob.jEmit('lostJob', `The job ${job.id} is not in the queue !`, tmpJob);
                 }
             }
@@ -227,6 +236,8 @@ function ttlTest(job) {
             job.jEmit('killed');
             //eventEmitter.emit("killedJob", job.id);
             liveMemory.removeJob(jobSel);
+            if (liveMemory.size() < nWorker)
+                jmServer.openBar();
         }); // Emiter is passed here if needed
     }
 }
@@ -259,20 +270,22 @@ function _checkJobBean(obj) {
 // New job packet arrived on MS socket, 1st arg is streamMap, 2nd the socket
 function pushMS(data) {
     logger.debug(`newJob Packet arrived w/ ${util.format(data)}`);
+    logger.silly(` Memory size vs nWorker :: ${liveMemory.size()} <<>> ${nWorker}`);
+    if (liveMemory.size("notBound") >= nWorker) {
+        logger.debug("must refuse packet, max pool size reached");
+        logger.debug(`Bouncing ${util.format(data)}`);
+        jmServer.bouncer(data);
+        return;
+        // No early exit yet
+    }
+    jmServer.granted(data);
     if (jobLib.isJobOptProxy(data)) {
-        logger.info(`jobOpt successfully received`);
+        logger.debug(`jobOpt successfully received`);
     }
     let jobProfile = data.jobProfile;
     data.fromConsumerMS = true;
-    //data input stream is ok here
+    //pool size
     let job = push(jobProfile, data);
-    /* logger.warn("eDump");
-     data.inputs.input.pipe(process.stdout);*/
-    /*let jobOpt:jobLib.jobOptProxyInterface = {
-        engine : microEngine,
-
-
-    }*/
 }
 /* weak typing of the jobOpt  parameter */
 function push(jobProfileString, jobOpt /*jobOptInterface*/, namespace) {
@@ -497,6 +510,8 @@ function _storeAndEmit(jid, status) {
     let jobObj = liveMemory.getJob(jobSel);
     if (jobObj) {
         liveMemory.removeJob(jobSel);
+        if (liveMemory.size("notBound") < nWorker)
+            jmServer.openBar();
         jobObj.jEmit("completed", jobObj);
         let serialJob = jobObj.getSerialIdentity();
         // add type 

@@ -30,6 +30,7 @@ if (program.jobOpt) {
 }
 if (program.shellScript)
     fs.statSync(program.shellScript);
+let j = 0;
 jobManagerMS.start({ 'port': port, 'TCPip': adress })
     .on('ready', () => {
     let i = 1;
@@ -49,7 +50,9 @@ jobManagerMS.start({ 'port': port, 'TCPip': adress })
             logger_js_1.logger.error(msg);
         })
             .on('completed', (stdout, stderr, jobRef) => {
+            j++;
             logger_js_1.logger.info("**Job Completion callback **");
+            logger_js_1.logger.info(`${j}`);
             logger_js_1.logger.info(`<<<(*-*)>>>`);
             let stdoutStr = '';
             stdout.on("data", (buffer) => {
@@ -57,14 +60,20 @@ jobManagerMS.start({ 'port': port, 'TCPip': adress })
                 let part = buffer.toString();
                 stdoutStr += part;
             });
-            stdout.on("end", () => { logger_js_1.logger.info('This is stdout :\n', stdoutStr); });
+            stdout.on("end", () => {
+                logger_js_1.logger.info('This is stdout :\n', stdoutStr);
+                stderr.on("end", () => {
+                    logger_js_1.logger.info('This is stderr :\n', sterrStr);
+                    if (j == n)
+                        process.exit(0);
+                });
+            });
             let sterrStr = '';
             stderr.on("data", (buffer) => {
                 logger_js_1.logger.info('some data');
                 let part = buffer.toString();
                 sterrStr += part;
             });
-            stderr.on("end", () => { logger_js_1.logger.info('This is stderr :\n', sterrStr); });
         });
         i += 1;
     } //worker--loop

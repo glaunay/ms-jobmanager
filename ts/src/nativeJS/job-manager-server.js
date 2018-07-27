@@ -5,12 +5,31 @@ let jobLib = require('../job.js');
 let ss = require('socket.io-stream');
 let logger = require('winston');
 let util = require('util');
+let uuidv4 = require('uuid/v4');
+let main = require("../index");
 //import ss = require('./node_modules/socket.io-stream/socket.io-stream.js');
 
 //import comType = require('./job-manager-comTypes.js');
 
+// Submit we w8 for status b4 sending another one
 
 let io;
+
+let socketRegistry = {};
+
+function registerSocket (uuid, socket) {
+    socketRegistry[uuid] = socket;
+}
+function removeSocket (uuid) {
+    delete socketRegistry[uuid];
+}
+
+function broadcast(status) {
+    for (let k in socketRegistry) {
+        socketRegistry[k].emit('centralStatus', status);
+    }
+
+}
 
 export function listen(port) {
     let evt = new events.EventEmitter;
@@ -18,7 +37,14 @@ export function listen(port) {
     let server = HTTP.createServer();
     io = socketIO(server);
     io.on('connection', function(socket){
+        let socketID = uuidv4();
+        registerSocket(socketID, socket);
         evt.emit('connection');
+        
+        /*socket.on('drained', (d) => {
+            logger.info(`job ${d.jobID} has drained its socket`);
+        });*/
+
         socket.on('newJobSocket', (data) => {
             let socketNamespace = data.id;
             logger.debug(`========\n=============\nnewJobSocket received container:\n${util.format(data)}`);
@@ -26,8 +52,9 @@ export function listen(port) {
                 script : ss.createStream(),
                 inputs : {}
             };            
-            for(let inputSymbol in data.inputs) {
+            for(let inputSymbol in data.inputs) {                
                 let filePath = data.inputs[inputSymbol];
+                logger.debug(`-->${filePath}`);
                 newData.inputs[inputSymbol] = ss.createStream();
                 logger.debug(`ssStream emission for input symbol '${inputSymbol}'`);
                 ss(socket).emit(socketNamespace + "/" + inputSymbol,newData.inputs[inputSymbol]);
@@ -48,7 +75,9 @@ export function listen(port) {
             evt.emit('newJobSocket', newData);
         });
 
-        socket.on('disconnect', function(){});
+        socket.on('disconnect', function(){
+            removeSocket(socketID);
+        });
     });
 
     server.listen(port);
@@ -92,5 +121,24 @@ export function socketPull(jobObject, stdoutStreamOverride, stderrStreamOverride
             _stderr.pipe(stream);
         });
     });
-    jobObject.socket.emit('completed', JSON.stringify(jobObject));
+    jobObject.socket.emit('completed', JSON.stringify(jobObject));    
+}
+
+/*
+ For now we dont do much just boreadcasting were overloaded
+*/
+export function bouncer(data){
+    logger.silly(`I wanna bounce ${data.id}`);
+    broadcast('busy');
+    data.socket.emit('bounced', {jobID : data.id});
+}
+export function granted(data){
+    data.socket.emit('granted', {jobID : data.id});
+    logger.silly(`i grant access to ${util.format(data.id)}`);
+    broadcast('available');
+}
+
+
+export function openBar(){
+
 }

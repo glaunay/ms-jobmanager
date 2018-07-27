@@ -245,33 +245,49 @@ export class jobInputs extends events.EventEmitter {
         let promises = inputs.map(function(tuple) {
             return new Promise(function(resolve,reject){
                
+                fs.stat(location,(err, stats)=>{
+                    if(err) {
+                        logger.error("Wrong filr path :: " + err);
+                        reject('path error');
+                        return;
+                    }
+                    let path = `${location}/${tuple[0]}.inp`;
+                    let target = fs.createWriteStream(path);
+                    target.on('error', (msg) => {
+                        logger.error('Failed to open write stream');
+                        reject('createWriteStreamError');
+                    })
+                    //logger.info(`opening ${path} success`);
 
-                let path = `${location}/${tuple[0]}.inp`;
-                let target = fs.createWriteStream(path);
-
-                //logger.error(`Stream input symbol ${tuple[0]}  = Dumped to => ${path}`);
-
-                tuple[1].pipe(target)
-                .on('data',(d:any)=>{console.log(d);})
-                .on('finish', () => {                    
-                    // the file you want to get the hash    
-                    let fd = fs.createReadStream(path);
-                    let hash = crypto.createHash('sha1');
-                    hash.setEncoding('hex');
+              
+                    tuple[1].pipe(target);
+                    target
+                    .on('data',(d:any)=>{console.log(d);})
+                    .on('close', () => {                    
+                        // the file you want to get the hash    
+                        let fd = fs.createReadStream(path);
+                        fd.on('error', ()=>{
+                            logger.error(`Can't open for reading ${path}`);
+                        })
+                        let hash = crypto.createHash('sha1');
+                        hash.setEncoding('hex');
                    // fd.on('error',()=>{logger.error('KIN')});
-                    fd.on('end', function() {
-                        hash.end();
-                        let sum = hash.read().toString();
-                        self.hashes[tuple[0]] = sum; // the desired sha1sum                        
-                        self.paths[tuple[0]] = path; // the path to file   
-                        resolve([tuple[0], path, sum]);//.
-                    });
+                        fd.on('end', function() {
+                            hash.end();
+                            let sum = hash.read().toString();
+                            self.hashes[tuple[0]] = sum; // the desired sha1sum                        
+                            self.paths[tuple[0]] = path; // the path to file   
+                            resolve([tuple[0], path, sum]);//.
+                        });
 // read all file and pipe it (write it) to the hash object
-                    fd.pipe(hash);
-                });
+                        fd.pipe(hash);
+                    });
+                })
             });
         });
-       // logger.info('Launching promises');
+       // WE SHOULD HANDLE STREAM WRITE ERROR REJECTION AND PROPAGATE IT FOR 
+       // owner JOB to be set in error status
+       // BUT FIFO mess seems fixed so we'll see later, sorry
         Promise.all(promises).then(values => {           
             self.hashable = true;
             //logger.error(`${values}`);
@@ -442,9 +458,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
 
     constructor( jobOpt :jobOptInterface, uuid? :string ){
         super(jobOpt, uuid);
-
         
-        console.log("CC JOB :: " + this.jobProfile);
         this.engine =  jobOpt.engine;
       //  this.queueBin =  jobOpt.queueBin;
 
@@ -477,8 +491,9 @@ export class jobObject extends jobProxy implements jobOptInterface  {
 
         let self = this;
         mkdirp(this.inputDir, function(err) {
-            if (err) {
+            if (err) {                
                 var msg = 'failed to create job ' + self.id + ' directory, ' + err;
+                logger.error(msg);
                 self.emit('folderCreationError', msg, err, self);
                 return;
             }
@@ -732,12 +747,13 @@ function dumpAndWrap(fName:string/*, localDir:string*/, sourceToDump?:streamLib.
                 }
                 logger.error(`Should not be here:\n ${util.format(stat)}`);
             } else {
-                logger.debug(`cant find file ${fName}`);
+                logger.warn(`cant find file ${fName}`);
                 if(sourceToDump){
 
                     logger.debug(`Found alternative source dumping it from \n ${util.format(sourceToDump)}`);
                     let target = fs.createWriteStream(fName, {'flags': 'a'});
-                    sourceToDump.pipe(target).on('close', () =>{
+                    sourceToDump.pipe(target);
+                    target.on('close', () =>{
                     let stream:streamLib.Readable = fs.createReadStream(fName, {
                         'encoding': 'utf8'
                         });

@@ -20,6 +20,9 @@ import liveMemory = require('./lib/pool.js');
 
 import clientWH = require('ms-warehouse');
 
+
+export function eLiveMemory() {return liveMemory;};
+
 //let search:warehouse.warehousSearchInterface;
 
 let engine :engineLib.engineInterface; // to type with Engine contract function signature
@@ -49,7 +52,7 @@ let wardenPulse :number = 5000;
 let warden : NodeJS.Timer;
 var cacheDir :string|null = null;
 
-
+let nWorker:number = 10; // running job max poolsize
 
 
 let eventEmitter : events.EventEmitter = new events.EventEmitter();
@@ -75,6 +78,7 @@ interface jobManagerSpecs {
     cacheDir : string,
     tcp : string,
     port : number,
+    nWorker?:number,
    // jobProfiles : any, // Need to work on that type
     cycleLength? : string,
     forceCache? : string,
@@ -188,6 +192,9 @@ ${util.format(opt)}\n`;
         });
     }
     
+    if(opt.nWorker) 
+        nWorker = opt.nWorker;
+
     if(opt.cycleLength)
         wardenPulse = parseInt(opt.cycleLength);
     if (opt.forceCache)
@@ -238,6 +245,7 @@ scheduler_id : ${scheduler_id}
 engine type : ${engine.specs}
 internal ip/port : ${TCPip}/${TCPport}
 consumer port : ${opt.microServicePort}
+worker pool size : ${nWorker}
 `);
         eventEmitter.emit("ready");
         })
@@ -260,6 +268,8 @@ function jobWarden():void {
                         //jobTmp.obj.emitter = curr_job.obj.emitter; // keep same emitter reference
                     let tmpJob = job;
                     liveMemory.removeJob(jobSel);
+                    if(liveMemory.size("notBound") < nWorker)
+                        jmServer.openBar();
                     tmpJob.jEmit('lostJob', `The job ${job.id} is not in the queue !`, tmpJob);
                 }
             } else {
@@ -294,6 +304,8 @@ function ttlTest(job:jobLib.jobObject) {
             job.jEmit('killed');
             //eventEmitter.emit("killedJob", job.id);
             liveMemory.removeJob(jobSel);
+            if(liveMemory.size() < nWorker)
+                jmServer.openBar();
         }); // Emiter is passed here if needed
     }
 }
@@ -330,28 +342,34 @@ function _checkJobBean(obj:any):boolean{
 // New job packet arrived on MS socket, 1st arg is streamMap, 2nd the socket
 function pushMS(data:any) {
     logger.debug(`newJob Packet arrived w/ ${util.format(data)}`);
+    logger.silly(` Memory size vs nWorker :: ${liveMemory.size()} <<>> ${nWorker}`);
+    if (liveMemory.size("notBound") >= nWorker) {
+        logger.debug("must refuse packet, max pool size reached");
+        logger.debug(`Bouncing ${util.format(data)}`);
+        jmServer.bouncer(data);
+        return;
+        // No early exit yet
+    }
+    
+    jmServer.granted(data);
     if(jobLib.isJobOptProxy(data)) {
-        logger.info(`jobOpt successfully received`);
+        logger.debug(`jobOpt successfully received`);
     }
     let jobProfile = data.jobProfile;
     data.fromConsumerMS = true;
 
-//data input stream is ok here
+//pool size
+
+
     let job = push(jobProfile, data);
-   /* logger.warn("eDump");
-    data.inputs.input.pipe(process.stdout);*/
 
-    /*let jobOpt:jobLib.jobOptProxyInterface = {
-        engine : microEngine,
-
-
-    }*/
 
 
 }
 
 /* weak typing of the jobOpt  parameter */
 export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, namespace?: string) : jobLib.jobObject {
+
 
     logger.debug(`Following litteral was pushed \n ${util.format(jobOpt)}`);
     let jobID =  uuidv4();
@@ -408,6 +426,9 @@ export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, 
 
     logger.debug(`Following jobTemplate was successfully buildt \n ${util.format(jobTemplate)}`);
     let newJob = new jobLib.jobObject(jobTemplate, jobID);
+
+
+
     if('fromConsumerMS' in jobOpt)
         newJob.fromConsumerMS = jobOpt.fromConsumerMS;
        
@@ -598,6 +619,8 @@ function _storeAndEmit(jid:string, status?:string) {
     let jobObj:jobLib.jobObject|undefined = liveMemory.getJob(jobSel);
     if (jobObj) {
         liveMemory.removeJob(jobSel);
+        if(liveMemory.size("notBound") < nWorker)
+            jmServer.openBar();
         jobObj.jEmit("completed", jobObj);
 
         let serialJob : jobLib.jobSerialInterface = jobObj.getSerialIdentity(); 

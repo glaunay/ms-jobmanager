@@ -23,6 +23,14 @@ function size(opt) {
         for (let w of wrapperIter())
             c++;
     }
+    else if (opt === 'source') {
+        for (let w of sourceWrapperIter())
+            c++;
+    }
+    else if (opt === 'notBound') {
+        for (let w of notBoundWrapperIter())
+            c++;
+    }
     return c;
 }
 exports.size = size;
@@ -146,6 +154,17 @@ function* sourceWrapperIter() {
         if (w.sType)
             if (w.sType == 'source')
                 yield w;
+    }
+}
+// To count the number of job that are source or yet to be set
+function* notBoundWrapperIter() {
+    //logger.info("notBoundWrapperIter");
+    for (let _w of wrapperIter()) {
+        let w = _w;
+        if (!w.sType)
+            yield w;
+        else if (w.sType == 'source')
+            yield w;
     }
 }
 function* sourceJobIter() {
