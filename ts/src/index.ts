@@ -451,6 +451,10 @@ export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, 
     newJob.start();
     liveMemory.addJob(newJob);
 
+    newJob.on('submitted', function(j) {
+        liveMemory.jobSet('SUBMITTED', { jobObject : newJob });
+        //jobsArray[j.id].status = 'SUBMITTED';
+    })
     newJob.on('inputSet', function() { 
         // All input streams were dumped to file(s), we can safely serialize
         let jobSerial = newJob.getSerialIdentity();
