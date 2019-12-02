@@ -100,6 +100,7 @@ class jobAccumulator extends events.EventEmitter {
             'jobOpt': jobOpt,
             'status': 'idle'
         });
+        logger.silly(`appendToQueue ${job.id}`)
         if (this.isIdle())
             this.pulse();
         return job;
@@ -146,25 +147,29 @@ class jobAccumulator extends events.EventEmitter {
         return job;
     }
     getJobObject(uuid) {
+        logger.silly(`getJobObject ${uuid}`)
         if (this.jobsPool.hasOwnProperty(uuid))
             return this.jobsPool[uuid];
         logger.error(`job id ${uuid} is not found in local jobsPool`);
-        logger.error(`${util.format(Object.keys(this.jobsPool))}`);
+        logger.error(`jobsPool : ${util.format(Object.keys(this.jobsPool))}`);
         return undefined;
     }
     bind(socket) {
         logger.debug("Binding accumulator to socket");
         this.socket = socket;
         socket.on('jobStart', (data) => {
+            logger.silly(`Client : socket on jobStart`)
             // Maybe do smtg
             // data = JSON.parse(data);
         });
         let self = this;
         socket.on('bounced', (d) => {
+            logger.silly(`Client : socket on bounced`)
             logger.debug(`Job ${util.format(d)} was bounced !`);
             self.jobsPromisesReject[d.jobID]({ 'type': 'bouncing', jobID: d.jobID });
         });
         socket.on('granted', (d) => {
+            logger.silly(`Client : socket on granted`)
             logger.debug(`Job ${util.format(d)} was granted !`);
             self.jobsPromisesResolve[d.jobID](d.jobID);
         });
@@ -192,7 +197,8 @@ class jobAccumulator extends events.EventEmitter {
         });
         ['scriptSetPermissionError', 'scriptWriteError', 'scriptReadError', 'inputError'].forEach((eName) => {
             socket.on(eName, (err, jobSerial) => {
-                let jRef = getJobObject(jobSerial.id);
+                logger.fatal(`socket.on error ${err} ${utils.format(jobSerial)}`)
+                let jRef = this.getJobObject(jobSerial.id);
                 if (!jRef)
                     return;
                 jRef.emit(eName, err, jRef);

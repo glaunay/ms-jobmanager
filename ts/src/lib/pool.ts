@@ -54,6 +54,7 @@ export function size(opt?:string):number{
 
 /*  We should follow shimmerings */
 export function removeJob(query:ISearchKey):boolean {
+    logger.debug(`Trying to remove ${query}`)
     let queryID = coherceToID(query);
     if(!queryID)
         return false;
@@ -62,7 +63,7 @@ export function removeJob(query:ISearchKey):boolean {
         logger.debug(`No job in memory for job selector ${query}`);
         return false;
     }
-    logger.debug(`Removing ${util.format(jobToDel.toJSON())}\n
+    logger.debug(`Removing ${util.format(jobToDel)}\n
 ==>[${jobToDel.hasShimmerings.length} shimmerings to delete]`);
     jobToDel.hasShimmerings.forEach((shimerJob)=>{removeJob({jobObject:shimerJob});});
 
