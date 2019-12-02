@@ -1,15 +1,17 @@
+"use strict";
 let EventEmitter = require('events').EventEmitter;
 let jobLib = require('../job.js');
 let io = require('socket.io-client');
 //import cType = require('./commonTypes.js');
 let fs = require('fs');
 let ss = require('socket.io-stream');
-let logger = require('winston');
 let util = require('util');
 let socket;
 let stream = require('stream');
 let through2 = require('through2');
 let events = require('events');
+let my_logger = require("../logger.js")
+let logger = my_logger.logger
 /*
     Defining object to take care of job sumbissions
 */
