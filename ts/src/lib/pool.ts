@@ -6,7 +6,7 @@ import util = require('util');
 import jobLib = require('../job.js');
 import cType = require('../commonTypes.js');
 //import {lookup as liveLookup, add as liveStore, remove as liveDel} from "./warehouse.js";
-import logger = require('winston');
+import {logger} from '../logger.js';
 
 export type jobStatus = "CREATED" | "SUBMITTED" | "COMPLETED"| "START"|"FINISHED";
 export function isJobStatus(type: string): type is jobStatus {

@@ -1,4 +1,4 @@
-import logger = require('winston');
+import {logger} from '../../logger.js';
 import jobLib = require('../../job');
 import events = require('events');
 

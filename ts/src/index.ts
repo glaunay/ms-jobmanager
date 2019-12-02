@@ -6,7 +6,7 @@ import util = require('util');
 import uuidv4 = require('uuid/v4');
 import streamLib = require('stream');
 //import date = require('date-and-time');
-import logger = require('winston');
+import {logger} from './logger.js';
 
 import jobLib = require('./job');
 
@@ -20,6 +20,7 @@ import liveMemory = require('./lib/pool.js');
 
 import clientWH = require('ms-warehouse');
 
+clientWH.setLogger(logger)
 
 export function eLiveMemory() {return liveMemory;};
 

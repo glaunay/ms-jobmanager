@@ -1,69 +1,70 @@
-import winston = require('winston');
+/*
+* This is the logger module using winston package. Redirecting some logs into the standard output (Console).
+* Setting up a log level need to be implemented before uses logs.
+* Use the #levelMin variable to set up the minimum log level that will be used in the entire program.
+* The default value of the log level is 'INFO'.
+* Require this module with: 
+*    import win = require('./lib/logger');
+*
+* Using examples:
+* - win.logger.log('CRITICAL', <text>)      - Higher level of logger, critical error
+* - win.logger.log('ERROR', <text>)         - Second level of logger, error
+* - win.logger.log('WARNING', <text>)       - Third level of logger, warning message
+* - win.logger.log('SUCCESS', <text>)       - 4th level of logger, success message
+* - win.logger.log('INFO', <text>)          - 5th level of logger, info message
+* - win.logger.log('DEBUG', <text>)         - Lower level of logger, debug mode
+*/
+const ws = require('winston');
 
-const config = {
+const myCustomLevels = {
     levels: {
-      error: 0,
-      debug: 1,
-      warn: 2,
-      data: 3,
-      info: 4,
-      verbose: 5,
-      silly: 6,
-      custom: 7
-    },
+        fatal:0,
+        error:1,
+        warn: 2,
+        success:3,
+        info:4,
+        debug:5,
+        silly:6
+        },
     colors: {
-      error: 'red',
-      debug: 'blue',
-      warn: 'yellow',
-      data: 'grey',
-      info: 'green',
-      verbose: 'cyan',
-      silly: 'magenta',
-      custom: 'yellow'
+        fatal: 'red',
+        error:  'magenta',
+        warn:'yellow',
+        success: 'green',
+        info:  'cyan',
+        debug: 'blue',
+        silly: 'white'
     }
   };
-
-winston.addColors(config.colors);
-
-function createFileTransport(path:string="./myNodeApp.log"):winston.transports.FileTransportInstance {
-
-    let files = new winston.transports.File({ filename: path,
-        format: winston.format.combine(
-        winston.format.simple()
-        ) });
-    return files;
-}
-
-let consoleT = new winston.transports.Console(
-  { 
-    format: winston.format.combine(
-      winston.format.colorize(),
-      winston.format.simple()
-    )
+// See winston format API at https://github.com/winstonjs/logform
+const cLogger = ws.createLogger({
+  format: ws.format.combine(
+    ws.format.colorize(),
+    ws.format.timestamp(),
+    ws.format.printf((info:any) => `[${info.timestamp}] ${info.level}: ${info.message}`)
+  ),
+  levels: myCustomLevels.levels,
+  transports: [new ws.transports.Console()]
 });
-winston.add(consoleT);
 
-//let fileDefaultTransport:winston.transports.FileTransportInstance = createFileTransport();
-//winston.add(fileDefaultTransport);
+ws.addColors(myCustomLevels.colors);
 
-let logLevel:string = 'info';
-
-function isLogLvl(value:string):boolean {
-    return config.levels.hasOwnProperty(value)
+type logLvl = 'debug'|'info'|'success'|'warn'|'error'|'critical';
+function isLogLvl (value:string) : value is logLvl {
+    return value === 'debug' || value === 'info' || value === 'success' || value === 'warning'
+    || value === 'error' || value === 'critical';
 }
-export function setLogLevel(value:string):void {
-    
-    if(!isLogLvl(value))
-        throw `Unrecognized logLvel "${value}"`;
-    logLevel = value;
-    winston.level = logLevel;
+export function setLogLevel (value : string) : void {
+    if (!isLogLvl(value)) throw `Unrecognized logLvel "${value}"`;
+    cLogger.level = value;
 }
 
 export function setLogFile(logFilePath:string):void {
     //winston.remove(fileDefaultTransport);
-    let fileCustomTransport:winston.transports.FileTransportInstance = createFileTransport(logFilePath);
-    winston.add(fileCustomTransport);
+    let fileCustomTransport:any= new ws.transports.File({filename: logFilePath});
+    //new winston.transports.File({ filename: 'error.log', level: 'error' })
+    cLogger.add(fileCustomTransport);
     //winston.level = logLevel;
 }
 
-export {winston as logger};
+export {cLogger as logger};

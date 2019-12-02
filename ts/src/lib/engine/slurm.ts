@@ -2,7 +2,7 @@ import events = require('events');
 import path = require('path');
 import util = require('util');
 import childP = require('child_process');
-import logger = require('winston');
+import {logger} from '../../logger.js';
 
 //import engineInterface} from 'index.js';
 import engineLib = require('./index.js');

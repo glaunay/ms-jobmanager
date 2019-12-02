@@ -10,7 +10,7 @@ import dir = require('node-dir');
 import md5 = require('md5');
 import streamLib = require('stream');
 //import spawn = require('spawn');
-import logger = require('winston');
+import {logger} from './logger.js';
 
 import { spawn } from 'child_process';
 
