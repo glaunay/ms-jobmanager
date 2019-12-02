@@ -44,7 +44,7 @@ const cLogger = ws.createLogger({
     ws.format.printf((info:any) => `[${info.timestamp}] ${info.level}: ${info.message}`)
   ),
   levels: myCustomLevels.levels,
-  transports: [new ws.transports.Console()]
+  transports: [new ws.transports.Console( { stderrLevels : ['fatal', 'error', 'warn']})]
 });
 
 ws.addColors(myCustomLevels.colors);
