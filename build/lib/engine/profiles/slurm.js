@@ -5,20 +5,26 @@ let profiles = {
     "definitions": {
         "ifb-slurm": {},
         "default": {
-            "partition": "medium-mobi",
-            "qos": "medium-mobi"
+            "partition": "medium",
+            "qos": "medium"
+        },
+        "crispr-dev": {
+            "partition": "ws-dev",
+            "qos": "ws-dev",
+            "gid": "ws_users",
+            "uid": "ws_crispr"
         },
         "arwen_gpu": {
             "partition": "gpu_dp",
             "qos": "gpu"
         },
         "arwen_cpu": {
-            "partition": "mpi-mobi",
-            "qos": "mpi-mobi"
+            "partition": "mpi",
+            "qos": "mpi"
         },
         "arwen_express": {
-            "partition": "express-mobi",
-            "qos": "express-mobi"
+            "partition": "express",
+            "qos": "express"
         },
         "arwen-dev_gpu": {
             "partition": "gpu",
@@ -55,9 +61,13 @@ let profiles = {
             "nCores": '16'
         },
         "arwen_hex_16cpu": {
-            "partition": "mpi-mobi",
-            "qos": "mpi-mobi",
+            "partition": "mpi",
+            "qos": "mpi",
             "nCores": '16'
+        },
+        "slurm_error": {
+            "partition": "toto",
+            "qos": "toto"
         }
     }
 };

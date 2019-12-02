@@ -1,11 +1,11 @@
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
-}
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const events = require("events");
 const path = require("path");
-const logger = require("winston");
+const logger_js_1 = require("../../logger.js");
 const localNixLike_js_1 = __importDefault(require("./profiles/localNixLike.js"));
 const ps_js_1 = require("./ps.js");
 const index_js_1 = require("./profiles/index.js");
@@ -54,7 +54,7 @@ class nixLikeEngine {
                     if (possibleValue) {
                         for (let value of possibleValue) {
                             if (regex.test(value)) {
-                                logger.silly(`${value} matches batch regexp at psAux field ${key}`);
+                                logger_js_1.logger.silly(`${value} matches batch regexp at psAux field ${key}`);
                                 let uuid = path.basename(value).replace(".batch", "");
                                 //let id:string[]|undefined =  results.id;
                                 if (results.id)

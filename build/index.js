@@ -7,13 +7,14 @@ const path = require("path");
 const util = require("util");
 const uuidv4 = require("uuid/v4");
 //import date = require('date-and-time');
-const logger = require("winston");
+const logger_js_1 = require("./logger.js");
 const jobLib = require("./job");
 const engineLib = require("./lib/engine/index.js");
 const cType = require("./commonTypes.js");
 const jmServer = require("./nativeJS/job-manager-server.js");
 const liveMemory = require("./lib/pool.js");
 const clientWH = require("ms-warehouse");
+clientWH.setLogger(logger_js_1.logger);
 function eLiveMemory() { return liveMemory; }
 exports.eLiveMemory = eLiveMemory;
 ;
@@ -52,12 +53,20 @@ function isSpecs(opt) {
     //logger.debug(`${opt.cacheDir}`);
     //let b:any = opt.cacheDir instanceof(String)
     if (!path.isAbsolute(opt.cacheDir)) {
-        logger.error('cacheDir parameter must be an absolute path');
+        logger_js_1.logger.error('cacheDir parameter must be an absolute path');
         return false;
     }
-    if ('cacheDir' in opt && 'tcp' in opt && 'port' in opt && 'engineSpec' in opt)
+    if (opt.engineBinaries) {
+        logger_js_1.logger.debug("Testing specified engineBinaries");
+        if (!engineLib.isBinariesSpec(opt.engineBinaries)) {
+            logger_js_1.logger.error(`Wrong binariesSpec\n ${util.inspect(opt.engineBinaries)}`);
+            return false;
+        }
+    }
+    if ('cacheDir' in opt && 'tcp' in opt && 'port' in opt && 'engineSpec' in opt) {
         return typeof (opt.cacheDir) == 'string' && typeof (opt.tcp) == 'string' &&
             typeof (opt.port) == 'number' && engineLib.isEngineSpec(opt.engineSpec);
+    }
     //logger.debug('niet');
     return false;
 }
@@ -82,7 +91,7 @@ function _openSocket(port) {
         eventEmitter.emit('error', e);
     });
     server.on('listening', function () {
-        logger.debug('Listening on ' + port + '...');
+        logger_js_1.logger.debug('Listening on ' + port + '...');
         eventEmitterSocket.emit('listening');
     });
     server.on('connection', function (s) {
@@ -104,19 +113,21 @@ function _pulse() {
         }
     }
 }
+//CH 02/12/19
+// Maybe use promess instead of emit("ready"), emit("error")
 function start(opt) {
-    logger.debug(`${util.format(opt)}`);
+    logger_js_1.logger.debug(`${util.format(opt)}`);
     if (isStarted) {
         let t = setTimeout(() => { eventEmitter.emit("ready"); }, 50);
         return eventEmitter;
     }
     if (!isSpecs(opt)) {
-        let msg = `Options required to start manager : \"cacheDir\", \"tcp\", \"port\"\n
-${util.format(opt)}\n`;
+        let msg = `Missing or wrong type arguments : engine, cacheDir, opt, tcp, binariesSpec (in conf file)`;
+        //eventEmitter.emit("error", msg)
         let t = setTimeout(() => { eventEmitter.emit("error", msg); }, 50);
         return eventEmitter;
     }
-    engine = engineLib.getEngine(opt.engineSpec);
+    engine = engineLib.getEngine(opt.engineSpec, opt.engineBinaries);
     emulator = opt.engineSpec == 'emulate' ? true : false;
     cacheDir = opt.cacheDir + '/' + scheduler_id;
     if (opt.tcp)
@@ -126,10 +137,10 @@ ${util.format(opt)}\n`;
     // if a port is provided for microservice we open connection
     if (opt.microServicePort) {
         microServiceSocket = jmServer.listen(opt.microServicePort);
-        logger.debug(`Listening for consumer microservices at : ${opt.microServicePort}`);
+        logger_js_1.logger.debug(`Listening for consumer microservices at : ${opt.microServicePort}`);
         microServiceSocket.on('newJobSocket', pushMS);
         microServiceSocket.on('connection', () => {
-            logger.debug('Connection on microservice consumer socket');
+            logger_js_1.logger.debug('Connection on microservice consumer socket');
         });
     }
     if (opt.nWorker)
@@ -149,36 +160,39 @@ ${util.format(opt)}\n`;
         }).then(() => { })
             .catch(() => { });
     //jobProfiles = opt.jobProfiles;
-    logger.debug("Attempting to create cache for process at " + cacheDir);
+    logger_js_1.logger.debug("Attempting to create cache for process at " + cacheDir);
     try {
         fs.mkdirSync(cacheDir);
     }
     catch (e) {
         if (e.code != 'EEXIST') {
-            logger.error(`Can't create cache folder reason:\n${e}}`);
+            logger_js_1.logger.error(`Can't create cache folder reason:\n${e}}`);
             throw e;
         }
-        logger.error("Cache found already found at " + cacheDir);
+        logger_js_1.logger.error("Cache found already found at " + cacheDir);
     }
-    logger.debug('[' + TCPip + '] opening socket at port ' + TCPport);
+    logger_js_1.logger.debug('[' + TCPip + '] opening socket at port ' + TCPport);
     let s = _openSocket(TCPport);
     let data = '';
     s.on('listening', function (socket) {
         isStarted = true;
-        logger.debug("Starting pulse monitoring");
-        logger.debug("cache Directory is " + cacheDir);
+        logger_js_1.logger.debug("Starting pulse monitoring");
+        logger_js_1.logger.debug("cache Directory is " + cacheDir);
         core = setInterval(function () {
             _pulse();
         }, 500);
         warden = setInterval(function () {
             jobWarden();
         }, wardenPulse);
-        logger.info(`-==JobManager successfully started==-
+        logger_js_1.logger.info(`-==JobManager successfully started==-
 scheduler_id : ${scheduler_id}
 engine type : ${engine.specs}
 internal ip/port : ${TCPip}/${TCPport}
 consumer port : ${opt.microServicePort}
 worker pool size : ${nWorker}
+submit binary : ${engine.submitBin}
+queue binary : ${engine.queueBin ? engine.queueBin : "No one"}
+cancel binary : ${engine.cancelBin ? engine.cancelBin : "No one"}
 `);
         eventEmitter.emit("ready");
     })
@@ -186,15 +200,21 @@ worker pool size : ${nWorker}
     return eventEmitter;
 }
 exports.start = start;
+function wardenKick(msg, error, job) {
+    logger_js_1.logger.silly('wardenKick');
+    liveMemory.removeJob({ jobObject: job });
+    job.socket.emit('fsFatalError', msg, error, job.id);
+}
 function jobWarden() {
-    logger.debug(`liveMemory size = ${liveMemory.size()}`);
+    logger_js_1.logger.silly("jobWarden");
+    logger_js_1.logger.debug(`liveMemory size = ${liveMemory.size()}`);
     engine.list().on('data', function (d) {
-        logger.silly(`${util.format(d)}`);
+        logger_js_1.logger.silly(`${util.format(d)}`);
         for (let job of liveMemory.startedJobiterator()) {
             let jobSel = { jobObject: job };
-            if (d.nameUUID.indexOf(job.id) === -1) {
+            if (d.nameUUID.indexOf(job.id) === -1) { // if key is not found in listed jobs
                 job.MIA_jokers -= 1;
-                logger.warn(`The job ${job.id} missing from queue! Jokers left is ${job.MIA_jokers}`);
+                logger_js_1.logger.warn(`The job ${job.id} missing from queue! Jokers left is ${job.MIA_jokers}`);
                 if (job.MIA_jokers === 0) {
                     //var jobTmp = clone(curr_job); // deepcopy of the disappeared job
                     //jobTmp.obj.emitter = curr_job.obj.emitter; // keep same emitter reference
@@ -202,12 +222,13 @@ function jobWarden() {
                     liveMemory.removeJob(jobSel);
                     if (liveMemory.size("notBound") < nWorker)
                         jmServer.openBar();
-                    tmpJob.jEmit('lostJob', `The job ${job.id} is not in the queue !`, tmpJob);
+                    logger_js_1.logger.error(`job ${job.id} definitively lost`);
+                    tmpJob.jEmit('lostJob', tmpJob);
                 }
             }
             else {
                 if (job.MIA_jokers < 3)
-                    logger.info(`Job ${job.id} found BACK ! Jokers count restored`);
+                    logger_js_1.logger.info(`Job ${job.id} found BACK ! Jokers count restored`);
                 job.MIA_jokers = 3;
                 liveMemory.setCycle(jobSel, '++');
                 ttlTest(job);
@@ -225,13 +246,13 @@ function ttlTest(job) {
     let jobSel = { jobObject: job };
     let nCycle = liveMemory.getCycle(jobSel);
     if (typeof nCycle === 'undefined') {
-        logger.error("TTL ncycle error");
+        logger_js_1.logger.error("TTL ncycle error");
         return;
     }
     var elaspedTime = wardenPulse * nCycle;
-    logger.warn(`Job is running for ~ ${elaspedTime} ms [ttl is : ${job.ttl}]`);
+    logger_js_1.logger.warn(`Job is running for ~ ${elaspedTime} ms [ttl is : ${job.ttl}]`);
     if (elaspedTime > job.ttl) {
-        logger.warn(`TTL exceeded for Job ${job.id} attempting to terminate it`);
+        logger_js_1.logger.warn(`TTL exceeded for Job ${job.id} attempting to terminate it`);
         engine.kill([job]).on('cleanExit', function () {
             job.jEmit('killed');
             //eventEmitter.emit("killedJob", job.id);
@@ -246,22 +267,22 @@ function ttlTest(job) {
 */
 function _checkJobBean(obj) {
     if (!cType.isStringMapOpt(obj)) {
-        logger.error("unproper job parameter (not a string map)");
+        logger_js_1.logger.error("unproper job parameter (not a string map)");
         return false;
     }
     if (!obj.hasOwnProperty('cmd') && !obj.hasOwnProperty('script')) {
-        logger.error("unproper job parameters (no script nor cmd)");
+        logger_js_1.logger.error("unproper job parameters (no script nor cmd)");
         return false;
     }
     if (obj.hasOwnProperty('cmd')) {
         if (!obj.cmd) {
-            logger.error("unproper job parameters (undefined cmd)");
+            logger_js_1.logger.error("unproper job parameters (undefined cmd)");
             return false;
         }
     }
     else {
         if (!obj.script) {
-            logger.error("unproper job parameters (undefined script)");
+            logger_js_1.logger.error("unproper job parameters (undefined script)");
             return false;
         }
     }
@@ -269,10 +290,10 @@ function _checkJobBean(obj) {
 }
 // New job packet arrived on MS socket, 1st arg is streamMap, 2nd the socket
 function pushMS(data, socket) {
-    logger.debug(`newJob Packet arrived w/ ${util.format(data)}`);
-    logger.silly(` Memory size vs nWorker :: ${liveMemory.size()} <<>> ${nWorker}`);
+    logger_js_1.logger.debug(`newJob Packet arrived w/ ${util.format(data)}`);
+    logger_js_1.logger.silly(` Memory size vs nWorker :: ${liveMemory.size()} <<>> ${nWorker}`);
     if (liveMemory.size("notBound") >= nWorker) {
-        logger.debug("must refuse packet, max pool size reached");
+        logger_js_1.logger.debug("must refuse packet, max pool size reached");
         jmServer.bouncer(data, socket);
         return;
         // No early exit yet
@@ -282,14 +303,14 @@ function pushMS(data, socket) {
         _data.fromConsumerMS = true;
         //pool size
         if (jobLib.isJobOptProxy(_data)) {
-            logger.debug(`jobOpt successfully decoded`);
+            logger_js_1.logger.debug(`jobOpt successfully decoded`);
         }
         let job = push(jobProfile, _data);
     });
 }
 /* weak typing of the jobOpt  parameter */
 function push(jobProfileString, jobOpt /*jobOptInterface*/, namespace) {
-    logger.debug(`Following litteral was pushed \n ${util.format(jobOpt)}`);
+    logger_js_1.logger.debug(`Following litteral was pushed \n ${util.format(jobOpt)}`);
     let jobID = uuidv4();
     if (jobOpt.hasOwnProperty('id'))
         if (jobOpt.id)
@@ -301,7 +322,7 @@ function push(jobProfileString, jobOpt /*jobOptInterface*/, namespace) {
         }
         catch (err) {
             if (err.code != 'EEXIST') {
-                logger.error("Namespace " + cacheDir + '/' + namespace + ' already exists.');
+                logger_js_1.logger.error("Namespace " + cacheDir + '/' + namespace + ' already exists.');
                 throw err;
             }
         }
@@ -337,7 +358,7 @@ function push(jobProfileString, jobOpt /*jobOptInterface*/, namespace) {
         jobTemplate.ttl = jobOpt.ttl;
     if ('socket' in jobOpt)
         jobTemplate.socket = jobOpt.socket;
-    logger.debug(`Following jobTemplate was successfully buildt \n ${util.format(jobTemplate)}`);
+    logger_js_1.logger.debug(`Following jobTemplate was successfully buildt \n ${util.format(jobTemplate)}`);
     let newJob = new jobLib.jobObject(jobTemplate, jobID);
     if ('fromConsumerMS' in jobOpt)
         newJob.fromConsumerMS = jobOpt.fromConsumerMS;
@@ -347,9 +368,17 @@ function push(jobProfileString, jobOpt /*jobOptInterface*/, namespace) {
     // newJob.melt // replace newJob by an already running job
     //                just copying client socket if fromConsumerMS 
     //
-    logger.debug(`Following jobObject was successfully buildt \n ${util.format(newJob)}`);
+    logger_js_1.logger.debug(`Following jobObject was successfully buildt \n ${util.format(newJob)}`);
     newJob.start();
     liveMemory.addJob(newJob);
+    let fatal_error = ["folderCreationError", "folderSetPermissionError"];
+    fatal_error.forEach((symbol) => {
+        newJob.on(symbol, wardenKick);
+    });
+    newJob.on('submitted', function (j) {
+        liveMemory.jobSet('SUBMITTED', { jobObject: newJob });
+        //jobsArray[j.id].status = 'SUBMITTED';
+    });
     newJob.on('inputSet', function () {
         // All input streams were dumped to file(s), we can safely serialize
         let jobSerial = newJob.getSerialIdentity();
@@ -363,32 +392,31 @@ function push(jobProfileString, jobOpt /*jobOptInterface*/, namespace) {
             //_resurrect(newJob, validWorkFolder);
         })
             .on('unknown', function () {
-            logger.debug("####No suitable job found in warehouse");
+            logger_js_1.logger.debug("####No suitable job found in warehouse");
             let previousJobs;
             previousJobs = liveMemory.lookup(newJob);
             if (previousJobs) {
                 // let refererJob:jobLib.jobObject = getJob(previousJobs[0].id];
-                logger.debug(`${previousJobs.length} suitable living job(s) found, shimmering`);
+                logger_js_1.logger.debug(`${previousJobs.length} suitable living job(s) found, shimmering`);
                 melting(previousJobs[0], newJob);
                 return;
             }
-            logger.debug('No Suitable living jobs found, launching');
+            logger_js_1.logger.debug('No Suitable living jobs found, launching');
             //liveStore(newJob.getSerialIdentity());  
             //jobRegister(newJob);
             liveMemory.jobSet('source', { jobObject: newJob });
             newJob.launch();
-            newJob.on('submitted', function (j) {
-                liveMemory.jobSet('SUBMITTED', { jobObject: newJob });
-                //jobsArray[j.id].status = 'SUBMITTED';
-            }).on('jobStart', function (job) {
+            newJob.on('jobStart', function (job) {
                 engine.list();
                 // shall we call dropJob function here ?
+                // CH/GL 02/12/19
+                //We should check for liveMemory management and client socket event propagation. 
             }).on('scriptReadError', function (err, job) {
-                logger.error(`ERROR while reading the script : \n ${err}`);
+                logger_js_1.logger.error(`ERROR while reading the script : \n ${err}`);
             }).on('scriptWriteError', function (err, job) {
-                logger.error(`ERROR while writing the coreScript : \n ${err}`);
+                logger_js_1.logger.error(`ERROR while writing the coreScript : \n ${err}`);
             }).on('scriptSetPermissionError', function (err, job) {
-                logger.error(`ERROR while trying to set permissions of the coreScript : \n ${err}`);
+                logger_js_1.logger.error(`ERROR while trying to set permissions of the coreScript : \n ${err}`);
             });
         });
     });
@@ -447,22 +475,22 @@ function _parseMessage(msg) {
     let jobSel = { 'jid': jid };
     //  liveMemory.getJob({ 'jid' : jid });
     if (!liveMemory.getJob(jobSel)) {
-        logger.warn(`unregistred job id ${jid}`);
+        logger_js_1.logger.warn(`unregistred job id ${jid}`);
         eventEmitter.emit('unregistredJob', jid);
         return;
         //throw 'unregistred job id ' + jid;
     }
-    logger.debug(`Status Updating job ${jid} : from
+    logger_js_1.logger.debug(`Status Updating job ${jid} : from
 \'${liveMemory.getJobStatus(jobSel)} \' to \'${uStatus}\'`);
     liveMemory.jobSet(uStatus, jobSel);
     let job = liveMemory.getJob(jobSel);
     if (job) {
         if (uStatus === 'START') {
             job.jEmit('jobStart', job);
-            logger.debug("parsing Message ==> emit jobStart");
+            logger_js_1.logger.debug("parsing Message ==> emit jobStart");
         }
         else if (uStatus === "FINISHED") {
-            logger.debug("parsing Message ==> FINISHED && pullin");
+            logger_js_1.logger.debug("parsing Message ==> FINISHED && pullin");
             _pull(job); //TO DO
         }
         //logger.error(`TO DO`);
@@ -474,7 +502,7 @@ function _parseMessage(msg) {
 
 */
 function _pull(job) {
-    logger.silly(`Pulling ${job.id}`);
+    logger_js_1.logger.silly(`Pulling ${job.id}`);
     job.stderr().then((streamError) => {
         let stderrString = null;
         streamError.on('data', function (datum) {
@@ -485,15 +513,15 @@ function _pull(job) {
                 _storeAndEmit(job.id);
                 return;
             }
-            logger.warn(`Job ${job.id} delivered a non empty stderr stream\n${stderrString}`);
+            logger_js_1.logger.warn(`Job ${job.id} delivered the following non empty stderr stream\n${stderrString}`);
             job.ERR_jokers--;
             if (job.ERR_jokers > 0) {
-                console.log(`Resubmitting this job ${job.ERR_jokers} try left`);
+                logger_js_1.logger.warn(`Resubmitting the job ${job.id} : ${job.ERR_jokers} try left`);
                 job.resubmit();
                 liveMemory.setCycle({ jobObject: job }, 0);
             }
             else {
-                console.log("This job will be set in error state");
+                logger_js_1.logger.warn(`The job ${job.id} will be set in error state`);
                 _storeAndEmit(job.id, 'error');
             }
         });
@@ -506,7 +534,7 @@ function _pull(job) {
 */
 function _storeAndEmit(jid, status) {
     let jobSel = { 'jid': jid };
-    logger.debug("Store&Emit");
+    logger_js_1.logger.debug("Store&Emit");
     let jobObj = liveMemory.getJob(jobSel);
     if (jobObj) {
         liveMemory.removeJob(jobSel);
@@ -517,11 +545,11 @@ function _storeAndEmit(jid, status) {
         // add type 
         // Make some tests on the jobFootPrint literal?
         clientWH.storeJob(serialJob).on('addSuccess', (message) => {
-            logger.log('success', `Job footprint stored in Warehouse`);
+            logger_js_1.logger.log('success', `Job footprint stored in Warehouse`);
         });
         //warehouse.store(jobObj); // Only if genuine
     }
     else {
-        logger.error('Error storing job is missing from pool');
+        logger_js_1.logger.error('Error storing job is missing from pool');
     }
 }

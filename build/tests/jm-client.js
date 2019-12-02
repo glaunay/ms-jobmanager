@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const jobManagerMS = require("../nativeJS/job-manager-client.js");
+let jobManagerMS = require('../nativeJS/job-manager-client.js');
+let util = require('util');
 const testTools_1 = require("./testTools");
 const logger_js_1 = require("../logger.js");
 let fs = require('fs');
@@ -58,19 +59,22 @@ jobManagerMS.start({ 'port': port, 'TCPip': adress })
             stdout.on("data", (buffer) => {
                 logger_js_1.logger.info('some data');
                 let part = buffer.toString();
+                logger_js_1.logger.warn(part);
                 stdoutStr += part;
+                logger_js_1.logger.warn(stdoutStr);
             });
             stdout.on("end", () => {
-                logger_js_1.logger.info('This is stdout :\n', stdoutStr);
-                stderr.on("end", () => {
-                    logger_js_1.logger.info('This is stderr :\n', sterrStr);
-                    if (j == n)
-                        process.exit(0);
-                });
+                logger_js_1.logger.warn(stdoutStr);
+                logger_js_1.logger.info("This is stdout :\n" + stdoutStr + "\n");
+                //if(j == n) process.exit(0);
+                //logger.info(util.inspect(stderr))
+            });
+            stderr.on("end", () => {
+                logger_js_1.logger.info('This is stderr :\n' + sterrStr);
             });
             let sterrStr = '';
             stderr.on("data", (buffer) => {
-                logger_js_1.logger.info('some data');
+                logger_js_1.logger.info('some data error');
                 let part = buffer.toString();
                 sterrStr += part;
             });

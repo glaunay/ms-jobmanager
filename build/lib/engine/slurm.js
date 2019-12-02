@@ -1,12 +1,12 @@
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
-}
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const events = require("events");
 const util = require("util");
 const childP = require("child_process");
-const logger = require("winston");
+const logger_js_1 = require("../../logger.js");
 const slurm_js_1 = __importDefault(require("./profiles/slurm.js"));
 const index_js_1 = require("./profiles/index.js");
 let localProfiles = slurm_js_1.default;
@@ -37,16 +37,21 @@ let preprocessorMapper = {
     }*/
 };
 class slurmEngine {
-    constructor() {
+    constructor(engineBinaries) {
         // Typeguard this w/ setters and path/Exec check
         this.submitBin = '/opt/slurm/bin/sbatch';
         this.cancelBin = '/opt/slurm/bin/scancel';
         this.queueBin = '/opt/slurm/bin/squeue';
         this.specs = 'slurm';
+        if (engineBinaries) {
+            this.submitBin = engineBinaries.submitBin;
+            this.queueBin = engineBinaries.queueBin;
+            this.cancelBin = engineBinaries.cancelBin;
+        }
     }
     generateHeader(jobID, jobProfileKey, workDir) {
         let processorType = index_js_1.defaultGetPreprocessorContainer(jobProfileKey, slurm_js_1.default);
-        logger.debug(`preprocesor container:\n${util.format(processorType)}`);
+        logger_js_1.logger.debug(`preprocesor container:\n${util.format(processorType)}`);
         return _preprocessorDump(jobID, processorType);
     }
     list() {
@@ -70,8 +75,8 @@ class slurmEngine {
         var targetJobID = jobList.map(function (jobObj) {
             return jobObj.id;
         });
-        logger.debug("Potential pending target job ids are:");
-        logger.debug(`${util.format(targetJobID)}`);
+        logger_js_1.logger.debug("Potential pending target job ids are:");
+        logger_js_1.logger.debug(`${util.format(targetJobID)}`);
         let targetProcess = [];
         let self = this;
         _squeue(this)
@@ -98,7 +103,7 @@ function _preprocessorDump(id, preprocessorOpt) {
     string += "#SBATCH -e " + id + ".err\n";
     for (let opt in preprocessorOpt) {
         if (!preprocessorMapper.hasOwnProperty(opt)) {
-            logger.warn("\"" + opt + "\" is not known profile parameters\"");
+            logger_js_1.logger.warn("\"" + opt + "\" is not known profile parameters\"");
             continue;
         }
         let value = preprocessorOpt[opt];

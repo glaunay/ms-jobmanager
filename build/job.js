@@ -18,7 +18,7 @@ const path = require("path");
 const md5 = require("md5");
 const streamLib = require("stream");
 //import spawn = require('spawn');
-const logger = require("winston");
+const logger_js_1 = require("./logger.js");
 const cType = require("./commonTypes.js");
 const job_manager_server_1 = require("./nativeJS/job-manager-server");
 const crypto = require("crypto");
@@ -31,13 +31,13 @@ function isJobOptProxy(data) {
     if (!data.hasOwnProperty('script') && !data.hasOwnProperty('inputs'))
         return false;
     if (!isStream(data.script)) {
-        logger.error("jobOptProxy script value is not a readable stream");
-        logger.error(`${data.script}`);
+        logger_js_1.logger.error("jobOptProxy script value is not a readable stream");
+        logger_js_1.logger.error(`${data.script}`);
         return false;
     }
     for (let k in data.inputs) {
         if (!isStream(data.inputs[k])) {
-            logger.error(`jobOptProxy input value \"${k}\" is not a readable stream`);
+            logger_js_1.logger.error(`jobOptProxy input value \"${k}\" is not a readable stream`);
             return false;
         }
     }
@@ -76,7 +76,7 @@ class jobInputs extends events.EventEmitter {
         if (!cType.isStreamOrStringMap(buffer))
             throw (`Wrong format for ${util.format(buffer)}`);
         let nTotal = Object.keys(buffer).length;
-        logger.debug(`jobInput constructed w/ ${nTotal} items:\n${util.format(buffer)}`);
+        logger_js_1.logger.debug(`jobInput constructed w/ ${nTotal} items:\n${util.format(buffer)}`);
         let self = this;
         for (let key in data) {
             if (isStream(buffer[key]))
@@ -89,10 +89,10 @@ class jobInputs extends events.EventEmitter {
                     let k = path.basename(datum).replace(/\.[^/.]+$/, "");
                     k = key; // GL Aug2018, HOTFIX from taskobject, maybe will break JM -- MS side let'see
                     this.streams[k] = fs.createReadStream(datum);
-                    logger.debug(`${buffer[key]} is a file, stream assigned to ${k}`);
+                    logger_js_1.logger.debug(`${buffer[key]} is a file, stream assigned to ${k}`);
                 }
                 catch (e) {
-                    logger.warn(`Provided input named ${key} is not a file, assuming a string`);
+                    logger_js_1.logger.warn(`Provided input named ${key} is not a file, assuming a string`);
                     // Handle error
                     if (e.code == 'ENOENT') {
                         //no such file or directory
@@ -121,14 +121,14 @@ class jobInputs extends events.EventEmitter {
     // Access from client side to wrap in socketIO
     getStreamsMap() {
         if (this.hashable) {
-            logger.warn('All streams were consumed');
+            logger_js_1.logger.warn('All streams were consumed');
             return undefined;
         }
         return this.streams;
     }
     hash() {
         if (!this.hashable) {
-            logger.warn('Trying to get hash of inputs before write it to files');
+            logger_js_1.logger.warn('Trying to get hash of inputs before write it to files');
             return undefined;
         }
         return this.hashes;
@@ -148,14 +148,14 @@ class jobInputs extends events.EventEmitter {
             return new Promise(function (resolve, reject) {
                 fs.stat(location, (err, stats) => {
                     if (err) {
-                        logger.error("Wrong filr path :: " + err);
+                        logger_js_1.logger.error("Wrong filr path :: " + err);
                         reject('path error');
                         return;
                     }
                     let path = `${location}/${tuple[0]}.inp`;
                     let target = fs.createWriteStream(path);
                     target.on('error', (msg) => {
-                        logger.error('Failed to open write stream');
+                        logger_js_1.logger.error('Failed to open write stream');
                         reject('createWriteStreamError');
                     });
                     //logger.info(`opening ${path} success`);
@@ -166,7 +166,7 @@ class jobInputs extends events.EventEmitter {
                         // the file you want to get the hash    
                         let fd = fs.createReadStream(path);
                         fd.on('error', () => {
-                            logger.error(`Can't open for reading ${path}`);
+                            logger_js_1.logger.error(`Can't open for reading ${path}`);
                         });
                         let hash = crypto.createHash('sha1');
                         hash.setEncoding('hex');
@@ -233,7 +233,7 @@ class jobProxy extends events.EventEmitter {
     // 2ways Forwarding event to consumer or publicMS 
     // WARNING wont work with streams
     jEmit(eName, ...args) {
-        logger.silly(`jEmit(this) ${eName}`);
+        logger_js_1.logger.silly(`jEmit(this) ${String(eName)}`);
         this.hasShimmerings.forEach((shimJob) => {
             shimJob.jEmit(eName, ...args);
         });
@@ -257,7 +257,7 @@ class jobProxy extends events.EventEmitter {
                 stdout = this.stdout();
             }
             Promise.all([stdout, stderr]).then((results) => {
-                logger.silly("Emitting completed event");
+                logger_js_1.logger.silly("Emitting completed event");
                 this.emit('completed', ...results);
             });
         }
@@ -282,7 +282,7 @@ class jobProxy extends events.EventEmitter {
             let _args = args.map((e) => {
                 return JSON.stringify(e); // Primitive OR 
             });
-            logger.silly(`socket emiting event ${eName}`);
+            logger_js_1.logger.silly(`socket emiting event ${String(eName)}`);
             this.socket.emit(eName, ..._args);
         }
         return true;
@@ -325,7 +325,7 @@ class jobObject extends jobProxy {
         mkdirp(this.inputDir, function (err) {
             if (err) {
                 var msg = 'failed to create job ' + self.id + ' directory, ' + err;
-                logger.error(msg);
+                logger_js_1.logger.error(msg);
                 self.emit('folderCreationError', msg, err, self);
                 return;
             }
@@ -363,7 +363,7 @@ class jobObject extends jobProxy {
             content = this.cmd;
         }
         else {
-            logger.error("serializing no cmd/script job object");
+            logger_js_1.logger.error("serializing no cmd/script job object");
         }
         serial.scriptHash = md5(content);
         return serial;
@@ -406,8 +406,8 @@ class jobObject extends jobProxy {
     submit(fname) {
         let self = this;
         let submitArgArray = [fname];
-        logger.debug(`submitting w/, ${this.engine.submitBin} ${submitArgArray}`);
-        logger.debug(`workdir : > ${this.workDir} <`);
+        logger_js_1.logger.debug(`submitting w/, ${this.engine.submitBin} ${submitArgArray}`);
+        logger_js_1.logger.debug(`workdir : > ${this.workDir} <`);
         let child = childProc.spawn(this.engine.submitBin, [fname], {
             cwd: this.workDir,
             detached: true,
@@ -424,6 +424,7 @@ class jobObject extends jobProxy {
             child.stdout.pipe(streamOut);
             child.stderr.pipe(streamErr);
         }
+        this.emit("submitted", this);
     }
     resubmit() {
         let fname = this.workDir + '/' + this.id + '.batch';
@@ -431,7 +432,7 @@ class jobObject extends jobProxy {
     }
     stdout() {
         return __awaiter(this, void 0, void 0, function* () {
-            logger.debug(`async stdout call at ${this.id} `);
+            logger_js_1.logger.debug(`async stdout call at ${this.id} `);
             let fNameStdout = this.fileOut ? this.fileOut : this.id + ".out";
             let fPath = this.workDir + '/' + fNameStdout;
             let stdoutStream = yield dumpAndWrap(fPath, this._stdout);
@@ -440,7 +441,7 @@ class jobObject extends jobProxy {
     }
     stderr() {
         return __awaiter(this, void 0, void 0, function* () {
-            logger.debug(`async stderr call at ${this.id} `);
+            logger_js_1.logger.debug(`async stderr call at ${this.id} `);
             let fNameStderr = this.fileErr ? this.fileErr : this.id + ".err";
             let fPath = this.workDir + '/' + fNameStderr;
             let stderrStream = yield dumpAndWrap(fPath, this._stderr);
@@ -550,32 +551,32 @@ function dumpAndWrap(fName /*, localDir:string*/, sourceToDump) {
         fs.stat(fName, (err, stat) => {
             if (!err) {
                 if (stat.isFile()) {
-                    logger.debug(`Found a file to wrap at ${fName}`);
+                    logger_js_1.logger.debug(`Found a file to wrap at ${fName}`);
                     let stream = fs.createReadStream(fName, {
                         'encoding': 'utf8'
                     });
                     resolve(stream);
                     return;
                 }
-                logger.error(`Should not be here:\n ${util.format(stat)}`);
+                logger_js_1.logger.error(`Should not be here:\n ${util.format(stat)}`);
             }
             else {
-                logger.warn(`cant find file ${fName}`);
+                logger_js_1.logger.warn(`cant find file ${fName}`);
                 if (sourceToDump) {
-                    logger.debug(`Found alternative source dumping it from \n ${util.format(sourceToDump)}`);
+                    logger_js_1.logger.debug(`Found alternative source dumping it from \n ${util.format(sourceToDump)}`);
                     let target = fs.createWriteStream(fName, { 'flags': 'a' });
                     sourceToDump.pipe(target);
                     target.on('close', () => {
                         let stream = fs.createReadStream(fName, {
                             'encoding': 'utf8'
                         });
-                        logger.debug(`should resolve with ${util.format(stream)}`);
+                        logger_js_1.logger.debug(`should resolve with ${util.format(stream)}`);
                         resolve(stream);
                         return;
                     });
                 }
                 else {
-                    logger.error("Output file error, Still cant open output file, returning empy stream");
+                    logger_js_1.logger.error("Output file error, Still cant open output file, returning empy stream");
                     let dummyStream = new streamLib.Readable();
                     dummyStream.push(null);
                     resolve(dummyStream);

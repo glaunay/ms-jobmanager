@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 /* Now that we have a profile typeguard we should consider loading profile jit */
-const logger = require("winston");
+const logger_js_1 = require("../../../logger.js");
 const cType = require("../../../commonTypes.js");
 function isProfile(obj) {
     if (typeof (obj) != 'object')
@@ -28,11 +28,11 @@ function defaultGetPreprocessorString(profileKey, profileContainer) {
 exports.defaultGetPreprocessorString = defaultGetPreprocessorString;
 function defaultGetPreprocessorContainer(profileKey, profileContainer) {
     if (!profileKey) {
-        logger.warn(`profile key undefined, using "default"`);
+        logger_js_1.logger.warn(`profile key undefined, using "default"`);
         profileKey = "default";
     }
     else if (!profileContainer.definitions.hasOwnProperty(profileKey)) {
-        logger.error(`profile key ${profileKey} unknown, using "default"`);
+        logger_js_1.logger.error(`profile key ${profileKey} unknown, using "default"`);
         profileKey = "default";
     }
     return profileContainer.definitions[profileKey];

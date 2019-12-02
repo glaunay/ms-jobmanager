@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const deepEqual = require("deep-equal");
 const util = require("util");
 //import {lookup as liveLookup, add as liveStore, remove as liveDel} from "./warehouse.js";
-const logger = require("winston");
+const logger_js_1 = require("../logger.js");
 function isJobStatus(type) {
     return type == "CREATED" || type == "SUBMITTED" || type == "COMPLETED" || type == "START" || type == "FINISHED";
 }
@@ -36,19 +36,20 @@ function size(opt) {
 exports.size = size;
 /*  We should follow shimmerings */
 function removeJob(query) {
+    logger_js_1.logger.debug(`Trying to remove ${query}`);
     let queryID = coherceToID(query);
     if (!queryID)
         return false;
     let jobToDel = getJob(query);
     if (!jobToDel) {
-        logger.debug(`No job in memory for job selector ${query}`);
+        logger_js_1.logger.debug(`No job in memory for job selector ${query}`);
         return false;
     }
-    logger.debug(`Removing ${util.format(jobToDel.toJSON())}\n
+    logger_js_1.logger.debug(`Removing ${util.format(jobToDel)}\n
 ==>[${jobToDel.hasShimmerings.length} shimmerings to delete]`);
     jobToDel.hasShimmerings.forEach((shimerJob) => { removeJob({ jobObject: shimerJob }); });
     delete jobsArray[queryID];
-    logger.debug("Removing successfully");
+    logger_js_1.logger.debug("Removing successfully");
     return true;
 }
 exports.removeJob = removeJob;
@@ -60,13 +61,13 @@ function addJob(newJob) {
         'sType': undefined
     };
     jobsArray[newJob.id] = nWrapper;
-    logger.debug("Adding successfully");
+    logger_js_1.logger.debug("Adding successfully");
 }
 exports.addJob = addJob;
 function setCycle(query, n) {
     let w = getJobWrapper(query);
     if (!w) {
-        logger.error('Cant set cycle');
+        logger_js_1.logger.error('Cant set cycle');
         return false;
     }
     if (typeof (n) == "number")
@@ -74,7 +75,7 @@ function setCycle(query, n) {
     else if (n === '++')
         w.nCycle += 1;
     else {
-        logger.error('Cant set cycle with that \"${util.format(n)}\"');
+        logger_js_1.logger.error('Cant set cycle with that \"${util.format(n)}\"');
         return false;
     }
     return true;
@@ -83,7 +84,7 @@ exports.setCycle = setCycle;
 function getCycle(query) {
     let w = getJobWrapper(query);
     if (!w) {
-        logger.error('Cant get cycle');
+        logger_js_1.logger.error('Cant get cycle');
         return undefined;
     }
     return w.nCycle;
@@ -95,7 +96,7 @@ function getJobWrapper(query) {
         return undefined;
     if (jobsArray.hasOwnProperty(queryID))
         return jobsArray[queryID];
-    logger.error(`id \"${queryID}\" not found in current jobs pool:\n
+    logger_js_1.logger.error(`id \"${queryID}\" not found in current jobs pool:\n
 ${asString()}`);
     return undefined;
 }
@@ -132,12 +133,12 @@ function jobSet(status, query) {
     if (!jobWrapper)
         return false;
     if (!isShimOrStatus(status)) {
-        logger.error(`unrecognized status to set \"${status}\"`);
+        logger_js_1.logger.error(`unrecognized status to set \"${status}\"`);
         return false;
     }
     if (isJobStatus(status))
         jobWrapper.status = status;
-    else
+    else // its a shim
         jobWrapper.sType = status;
     return true;
 }
@@ -178,7 +179,7 @@ function coherceToID(query) {
         return query.jobSerial.id;
     if ('jobObject' in query)
         return query.jobObject.id;
-    logger.error(`can\'t coherce that ${util.format(query)}`);
+    logger_js_1.logger.error(`can\'t coherce that ${util.format(query)}`);
     return undefined;
 }
 /*  job resurrection source search
@@ -258,7 +259,7 @@ function lookup(jobAsked) {
         if (isConstraintsOk(query, item))
             hits.push(job);
     }
-    logger.debug(`Found ${hits.length} hits`);
+    logger_js_1.logger.debug(`Found ${hits.length} hits`);
     if (hits.length == 0)
         return undefined;
     return hits;
