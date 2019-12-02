@@ -161,6 +161,8 @@ function _pulse() {
     }
 }
 
+//CH 02/12/19
+// Maybe use promess instead of emit("ready"), emit("error")
 export function start(opt:jobManagerSpecs):events.EventEmitter {
     logger.debug(`${util.format(opt)}`);
 
@@ -261,7 +263,14 @@ cancel binary : ${engine.cancelBin ? engine.cancelBin : "No one"}
         return eventEmitter;
 }
 
+function wardenKick(msg:string, error:string, job:jobLib.jobObject):void{
+    logger.silly('wardenKick')
+    liveMemory.removeJob({jobObject : job})
+    job.socket.emit('fsFatalError', msg, error, job.id)
+}
+
 function jobWarden():void {
+    logger.silly("jobWarden")
     logger.debug(`liveMemory size = ${liveMemory.size()}`);
     engine.list().on('data', function(d:engineLib.engineListData) {
         logger.silly(`${util.format(d)}`);
@@ -277,7 +286,8 @@ function jobWarden():void {
                     liveMemory.removeJob(jobSel);
                     if(liveMemory.size("notBound") < nWorker)
                         jmServer.openBar();
-                    tmpJob.jEmit('lostJob', `The job ${job.id} is not in the queue !`, tmpJob);
+                    logger.error(`job ${job.id} definitively lost`)    
+                    tmpJob.jEmit('lostJob', tmpJob);
                 }
             } else {
                 if (job.MIA_jokers < 3)
@@ -451,10 +461,17 @@ export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, 
     newJob.start();
     liveMemory.addJob(newJob);
 
+    let fatal_error = ["folderCreationError", "folderSetPermissionError"]
+
+    fatal_error.forEach((symbol:string) => {
+        newJob.on(symbol, wardenKick);
+    });
+
     newJob.on('submitted', function(j) {
         liveMemory.jobSet('SUBMITTED', { jobObject : newJob });
         //jobsArray[j.id].status = 'SUBMITTED';
     })
+
     newJob.on('inputSet', function() { 
         // All input streams were dumped to file(s), we can safely serialize
         let jobSerial = newJob.getSerialIdentity();
@@ -486,12 +503,11 @@ export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, 
                 liveMemory.jobSet('source', { jobObject : newJob });
                 newJob.launch();
 
-                newJob.on('submitted', function(j) {
-                    liveMemory.jobSet('SUBMITTED', { jobObject : newJob });
-                    //jobsArray[j.id].status = 'SUBMITTED';
-                }).on('jobStart', function(job) {
+                newJob.on('jobStart', function(job) {
                     engine.list()
             // shall we call dropJob function here ?
+            // CH/GL 02/12/19
+            //We should check for liveMemory management and client socket event propagation. 
                 }).on('scriptReadError', function (err, job) {
                     logger.error(`ERROR while reading the script : \n ${err}`);
                 }).on('scriptWriteError', function (err, job) {
@@ -603,14 +619,14 @@ function _pull(job:jobLib.jobObject):void {
         })
         .on('end', function () {          
             if(!stderrString) { _storeAndEmit(job.id); return; }
-            logger.warn(`Job ${job.id} delivered a non empty stderr stream\n${stderrString}`);
+            logger.warn(`Job ${job.id} delivered the following non empty stderr stream\n${stderrString}`);
             job.ERR_jokers--;
             if (job.ERR_jokers > 0){
-                console.log(`Resubmitting this job ${job.ERR_jokers} try left`);
+                logger.warn(`Resubmitting the job ${job.id} : ${job.ERR_jokers} try left`);
                 job.resubmit();
                 liveMemory.setCycle({jobObject:job}, 0);                
             } else {
-                console.log("This job will be set in error state");
+                logger.warn(`The job ${job.id} will be set in error state`);
                 _storeAndEmit(job.id, 'error');
             }
         });

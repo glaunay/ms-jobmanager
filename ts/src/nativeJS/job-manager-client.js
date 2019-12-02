@@ -81,14 +81,11 @@ class jobAccumulator extends events.EventEmitter {
                         jobOpt.inputs[inputEvent].pipe(stream);
                     });
                 logger.silly(`EMITTING THIS ORIGINAL ${jobWrap.job.id}\n${util.format(jobWrap.data)}`);
-            } else {
+            }
+            else {
                 logger.silly(`EMITTING THIS RESUB ${jobWrap.job.id}\n${util.format(jobWrap.data)}`);
             }
             jobWrap.status = 'sent';
-
-          
-            
-            
             socket.emit('newJobSocket', jobWrap.data);
         });
         return p;
@@ -171,11 +168,15 @@ class jobAccumulator extends events.EventEmitter {
             logger.debug(`Job ${util.format(d)} was granted !`);
             self.jobsPromisesResolve[d.jobID](d.jobID);
         });
-        socket.on('lostJob', (jobSerial) => {
+        socket.on('lostJob', (_jobSerial) => {
+            logger.silly(`Client : socket on lostJob`)
+            let jobSerial = JSON.parse(_jobSerial)
+            logger.error(`lostJob ${jobSerial.id}`)
             let jRef = this.getJobObject(jobSerial.id);
             if (!jRef)
                 return;
-            logger.error(`Following job not found in the process pool ${JSON.stringify(jRef.toJSON())}`);
+            logger.error(`Following job not found in the process pool ${jRef.id}`);
+            logger.debug(util.format(jRef))
             jRef.emit('lostJob', jRef);
             self.deleteJob(jobSerial.id);
         });
@@ -198,7 +199,8 @@ class jobAccumulator extends events.EventEmitter {
         });
         ['submitted', 'ready'].forEach((eName) => {
             socket.on(eName, (jobSerial) => {
-                let jRef = getJobObject(jobSerial.id);
+                logger.silly(`socket on ${eName}`)
+                let jRef = this.getJobObject(jobSerial.id);
                 if (!jRef)
                     return;
                 jRef.emit('ready');
@@ -246,17 +248,14 @@ function pull(_jobSerial) {
         return;
     logger.debug('completed event on socket');
     logger.silly(`${util.format(jobObject)}`);
-
     jobObject.stdout = ss.createStream();
     jobObject.stderr = ss.createStream();
-
     logger.debug(`Pulling for ${jobObject.id}:stdout`);
     logger.debug(`Pulling for ${jobObject.id}:stderr`);
-    ss(socket).emit(`${jobObject.id}:stdout`, jobObject.stdout );
+    ss(socket).emit(`${jobObject.id}:stdout`, jobObject.stdout);
     ss(socket).emit(`${jobObject.id}:stderr`, jobObject.stderr);
-  
-   jobObject.emit('completed', jobObject.stdout, jobObject.stderr, jobObject);
-   return;
+    jobObject.emit('completed', jobObject.stdout, jobObject.stderr, jobObject);
+    return;
 }
 function push(data) {
     let jobOpt = {
@@ -281,7 +280,6 @@ function push(data) {
     // console.log(`Got that\n${util.format(data)}`);
     logger.debug(`Passing following jobOpt to jobProxy constructor\n${util.format(jobOpt)}`);
     let job = jobAccumulator.appendToQueue(data, jobOpt);
-
     return job;
 }
 function buildStreams(data, job) {
