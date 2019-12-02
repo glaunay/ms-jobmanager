@@ -1,5 +1,5 @@
 /* Now that we have a profile typeguard we should consider loading profile jit */
-import logger = require('winston');
+import {logger} from '../../../logger.js';
 import cType = require('../../../commonTypes.js');
 
 export interface profileInterface {
