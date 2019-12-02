@@ -181,12 +181,14 @@ class jobAccumulator extends events.EventEmitter {
             self.deleteJob(jobSerial.id);
         });
         //  *          'listError, {String}error) : the engine failed to list process along with error message
-        socket.on('folderSetPermissionError', (msg, err, jobSerial) => {
-            let jRef = getJobObject(jobSerial.id);
+
+        socket.on('fsFatalError', (msg, err, jobID) => {
+            logger.silly(`Client : socket on fsFatalError`)
+            let jRef = this.getJobObject(jobID);
             if (!jRef)
                 return;
-            jRef.emit('folderSetPermissionError', msg, err, jRef);
-            self.deleteJob(jobSerial.id);
+            jRef.emit('fsFatalError', msg, err, jRef);
+            self.deleteJob(jobID);
         });
         ['scriptSetPermissionError', 'scriptWriteError', 'scriptReadError', 'inputError'].forEach((eName) => {
             socket.on(eName, (err, jobSerial) => {
