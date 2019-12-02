@@ -66,13 +66,6 @@ let isStarted :boolean = false;
 
 let microServiceSocket:events.EventEmitter|undefined = undefined;
 
-
-interface BinariesSpec {
-   cancelBin : string;
-   queueBin : string;
-   submitBin : string;
-}
-
 let schedulerID = uuidv4();
 // VR Add Warehouse coordinates
 interface jobManagerSpecs {
@@ -87,7 +80,8 @@ interface jobManagerSpecs {
     microServicePort?:number;
     warehouseAddress?: string,
     warehousePort?: number,
-    warehouseTest?: boolean
+    warehouseTest?: boolean,
+    engineBinaries? : engineLib.BinariesSpec
     //asMicroService?:boolean;
 }
 //VR change typeguard to warehouse
@@ -101,11 +95,20 @@ function isSpecs(opt: any): opt is jobManagerSpecs {
         return false;
     }
 
-    if ('cacheDir' in opt && 'tcp' in opt && 'port' in opt && 'engineSpec' in opt)
+    if (opt.engineBinaries) {
+        logger.debug("Testing specified engineBinaries")
+        if (!engineLib.isBinariesSpec(opt.engineBinaries)) {
+            logger.error(`Wrong binariesSpec\n ${util.inspect(opt.engineBinaries)}`)
+            return false;
+        }
+    }
+
+    if ('cacheDir' in opt && 'tcp' in opt && 'port' in opt && 'engineSpec' in opt){
         return typeof(opt.cacheDir) == 'string' && typeof(opt.tcp) == 'string' &&
                typeof(opt.port) == 'number' && engineLib.isEngineSpec(opt.engineSpec);
+    }
+        
         //logger.debug('niet');
-    
     return false;
 }
 
@@ -167,13 +170,13 @@ export function start(opt:jobManagerSpecs):events.EventEmitter {
     }
 
     if (!isSpecs(opt)) {
-        let msg:string = `Options required to start manager : \"cacheDir\", \"tcp\", \"port\"\n
-${util.format(opt)}\n`;
+        let msg:string = `Missing or wrong type arguments : engine, cacheDir, opt, tcp, binariesSpec (in conf file)`;
+        //eventEmitter.emit("error", msg)
         let t:NodeJS.Timer = setTimeout(()=>{ eventEmitter.emit("error", msg); },50);
         return eventEmitter;
     }
 
-    engine = engineLib.getEngine(opt.engineSpec);
+    engine = engineLib.getEngine(opt.engineSpec, opt.engineBinaries);
    
     emulator = opt.engineSpec == 'emulate' ? true : false;
     cacheDir = opt.cacheDir + '/' + scheduler_id;
@@ -247,6 +250,9 @@ engine type : ${engine.specs}
 internal ip/port : ${TCPip}/${TCPport}
 consumer port : ${opt.microServicePort}
 worker pool size : ${nWorker}
+submit binary : ${engine.submitBin}
+queue binary : ${engine.queueBin ? engine.queueBin : "No one"}
+cancel binary : ${engine.cancelBin ? engine.cancelBin : "No one"}
 `);
         eventEmitter.emit("ready");
         })

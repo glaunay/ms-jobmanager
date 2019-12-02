@@ -8,6 +8,7 @@ import cType = require('../../commonTypes.js');
 
 import nixLike = require('./localNixLike.js');
 import slurm = require('./slurm.js');
+import { every } from 'async';
 
 export interface engineListData {
         'id'?:        string[];
@@ -34,6 +35,8 @@ export interface engineKill {
 export interface engineInterface {
     generateHeader : engineHeaderFunc;
     submitBin : string;
+    queueBin? : string;
+    cancelBin? : string;
     list : engineList;
     kill : engineKill;
     testCommand : engineTest;
@@ -42,18 +45,35 @@ export interface engineInterface {
 
 export type engineSpecs = "slurm" | "sge" | "emulate" | "dummy";
 export function isEngineSpec(type: string): type is engineSpecs {
-    
-    return type == "slurm" || type ==  "sge" ||type ==  "emulate";
+    return type == "slurm" || type ==  "sge" || type ==  "emulate";
 }
 
+export interface BinariesSpec {
+    cancelBin : string;
+    queueBin : string;
+    submitBin : string;
+ }
+
+ const isSetEqual = (a:Set<any>,b:Set<any>) => a.size === b.size && [...a].every(value => b.has(value))
+
+ const binariesKeys:Set<string> = new Set(["submitBin", "queueBin", "cancelBin"])
+ 
+ export function isBinariesSpec(binaries: any): binaries is BinariesSpec {
+    let x = new Set(Object.keys(binaries))
+    return isSetEqual(x, binariesKeys);
+ }
 
 export interface preprocessorMapFn {
     (v:string) : string;
 }
 export type preprocessorMapperType = { [s:string] : preprocessorMapFn }
 
-export function getEngine(engineName?:engineSpecs): engineInterface{
+export function getEngine(engineName?:engineSpecs, engineBinaries?:BinariesSpec): engineInterface{
+    //logger.info("Get engine " + Object.keys(engineBinaries))
     logger.debug(`Asked engine symbol ${engineName}`);
+
+    if (engineBinaries) logger.debug(`Personnalized engineBinaries provided : ${JSON.stringify(engineBinaries)}`)
+
     if (!engineName) {
         logger.info('Binding manager with dummy engine');
         return new dummyEngine();
@@ -63,7 +83,7 @@ export function getEngine(engineName?:engineSpecs): engineInterface{
         return new nixLike.nixLikeEngine();
 
     if(engineName == 'slurm')
-        return new slurm.slurmEngine();
+        return new slurm.slurmEngine(engineBinaries);
 
         
     logger.error(`Unknown engine name ${engineName}`);
@@ -73,10 +93,10 @@ export function getEngine(engineName?:engineSpecs): engineInterface{
 
 export class dummyEngine implements engineInterface {
     constructor() {
-
     }
     specs:engineSpecs='dummy';
     submitBin:string = 'dummyExec';
+    //logger.info(engineBinaries)
 
     generateHeader (a : string, b : string|undefined, c : string):string {
         return 'dummy Engine header';

@@ -53,8 +53,14 @@ export class slurmEngine implements engineLib.engineInterface {
     cancelBin:string = '/opt/slurm/bin/scancel';
     queueBin:string  = '/opt/slurm/bin/squeue';
     specs:engineLib.engineSpecs='slurm';
-    constructor(){
-
+    
+    constructor(engineBinaries:engineLib.BinariesSpec|undefined){
+        if (engineBinaries){
+            this.submitBin = engineBinaries.submitBin
+            this.queueBin = engineBinaries.queueBin
+            this.cancelBin = engineBinaries.cancelBin
+        }
+        
     }
     generateHeader (jobID:string, jobProfileKey:string|undefined, workDir:string):string {
         let processorType:{} = getPreprocessor(jobProfileKey, profiles);
