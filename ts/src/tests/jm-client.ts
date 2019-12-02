@@ -1,5 +1,5 @@
-import jobManagerMS = require('../nativeJS/job-manager-client.js');
-import util = require('util');
+let jobManagerMS = require('../nativeJS/job-manager-client.js');
+let util = require('util');
 import {createJobOpt} from './testTools';
 
 import {logger, setLogLevel} from '../logger.js';
@@ -72,19 +72,23 @@ jobManagerMS.start({'port':port, 'TCPip':adress})
                 stdout.on("data", (buffer:any) => {
                     logger.info('some data');
                     let part = buffer.toString(); 
+                    logger.warn(part)
                     stdoutStr += part;
+                    logger.warn(stdoutStr)
                 });
                 stdout.on("end", () => {
-                    logger.info('This is stdout :\n', stdoutStr);
-                    stderr.on("end", () => {
-                        logger.info('This is stderr :\n', sterrStr);
-                        if(j == n) process.exit(0);
-                    });
+                    logger.warn(stdoutStr)
+                    logger.info("This is stdout :\n" + stdoutStr + "\n");
+                    //if(j == n) process.exit(0);
+                    //logger.info(util.inspect(stderr))
                 });
-    
+                stderr.on("end", () => {
+                    logger.info('This is stderr :\n' + sterrStr);
+                    
+                });
                 let sterrStr = '';
                 stderr.on("data", (buffer:any) => {
-                    logger.info('some data');
+                    logger.info('some data error');
                     let part = buffer.toString(); 
                     sterrStr += part;
                 });
