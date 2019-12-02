@@ -360,7 +360,7 @@ export class jobProxy extends events.EventEmitter implements jobOptProxyInterfac
     // 2ways Forwarding event to consumer or publicMS 
     // WARNING wont work with streams
     jEmit(eName:string|symbol, ...args: any[]):boolean {
-        logger.silly(`jEmit(this) ${eName}`);
+        logger.silly(`jEmit(this) ${String(eName)}`);
 
         this.hasShimmerings.forEach((shimJob:jobObject) => {
             shimJob.jEmit(eName, ...args);
@@ -411,7 +411,7 @@ export class jobProxy extends events.EventEmitter implements jobOptProxyInterfac
             let _args = args.map((e)=>{
                 return JSON.stringify(e); // Primitive OR 
             });
-            logger.silly(`socket emiting event ${eName}`);            
+            logger.silly(`socket emiting event ${String(eName)}`);            
             this.socket.emit(eName, ..._args);
         }
         return true;
@@ -589,7 +589,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
         }); 
         // and unref() somehow disentangles the child's event loop from the parent's: 
         child.unref(); 
-
+        
         if(this.emulated) {
             let fNameStdout:string = this.fileOut ? this.fileOut : this.id + ".out"; 
             let streamOut = fs.createWriteStream(this.workDir + '/' + fNameStdout);
@@ -599,6 +599,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
             child.stdout.pipe(streamOut);
             child.stderr.pipe(streamErr);
         }
+        this.emit("submitted", this)
     }
 
     resubmit():void  {
