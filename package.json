@@ -1,6 +1,6 @@
 {
   "name": "ms-jobmanager",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "A micro-service to handle job instanciation and submission ",
   "main": "build/nativeJS/job-manager-client.js",
   "scripts": {
@@ -10,7 +10,7 @@
     "type": "git",
     "url": "git+https://github.com/melaniegarnier/ms-jobmanager.git"
   },
-  "author": "MG,GL, VR",
+  "author": "MG, GL, VR, CH",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/melaniegarnier/ms-jobmanager/issues"
