@@ -13,6 +13,12 @@ let profiles = {
             "gid": "ws_users",
             "uid": "ws_crispr"
         },
+        "mad-dev": {
+            "partition": "ws-dev",
+            "qos": "ws-dev",
+            "gid": "ws_users",
+            "uid": "ws_mad"
+        },
         "arwen_gpu": {
             "partition": "gpu_dp",
             "qos": "gpu"

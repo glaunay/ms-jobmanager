@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.lookup = void 0;
 const child_process_1 = require("child_process");
 const events = require("events");
 const tableParser = require("table-parser");

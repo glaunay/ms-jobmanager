@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.logger = exports.setLogFile = exports.setLogLevel = void 0;
 /*
 * This is the logger module using winston package. Redirecting some logs into the standard output (Console).
 * Setting up a log level need to be implemented before uses logs.

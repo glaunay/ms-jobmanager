@@ -1,9 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.dummyEngine = exports.getEngine = exports.isBinariesSpec = exports.isEngineSpec = void 0;
 const logger_js_1 = require("../../logger.js");
 const events = require("events");
 var job_1 = require("../../job");
-exports.jobObject = job_1.jobObject;
+Object.defineProperty(exports, "jobObject", { enumerable: true, get: function () { return job_1.jobObject; } });
 const nixLike = require("./localNixLike.js");
 const slurm = require("./slurm.js");
 function isEngineSpec(type) {

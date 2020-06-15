@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.slurmEngine = void 0;
 const events = require("events");
 const util = require("util");
 const childP = require("child_process");
@@ -70,7 +71,7 @@ class slurmEngine {
                     'cancelError', {String} message : An error occured during job cancelation
                     'listError', {String} message : An error occured during joblisting"
     */
-    kill(jobList) {
+    kill(jobList, overrideBinary) {
         var emitter = new events.EventEmitter();
         var targetJobID = jobList.map(function (jobObj) {
             return jobObj.id;
@@ -88,7 +89,7 @@ class slurmEngine {
                 if (targetJobID.indexOf(uuid) >= 0)
                     targetProcess.push(squeueLookupDict.id[i]);
             });
-            _kill(self, targetProcess, emitter);
+            _kill(self, targetProcess, emitter, overrideBinary);
         });
         return emitter;
     }
@@ -140,13 +141,13 @@ function _preprocessorDump(id, preprocessorOpt) {
     // NEW to load the modules
     return string;
 }
-function _kill(engine, processIDs, emitter) {
+function _kill(engine, processIDs, emitter, overrideBinary) {
     let exec_cmd = childP.exec;
     if (processIDs.length == 0) {
         emitter.emit('emptyExit');
         return;
     }
-    exec_cmd(engine.cancelBin + ' ' + processIDs.join(' '), function (err, stdout, stderr) {
+    exec_cmd(`${overrideBinary !== null && overrideBinary !== void 0 ? overrideBinary : engine.cancelBin} ${processIDs.join(' ')}`, function (err, stdout, stderr) {
         if (err) {
             emitter.emit('cancelError', err);
             return;

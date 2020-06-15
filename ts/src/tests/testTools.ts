@@ -88,7 +88,7 @@ export function createJobOpt(id?:number):{} {
 }
 /**/
 
-export function performDummyPush(jm:any, jobObpt:any, killTime?:number, jobProfile:string='default'):Promise<{}>{
+export function performDummyPush(jm:any, jobObpt:any, killTime?:number, jobProfile:string='default'):Promise<any>{
     let ttlBool:boolean = typeof killTime !== 'undefined';
     if(ttlBool)
         jobObpt.exportVar.waitingTime += killTime;

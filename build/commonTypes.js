@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.isStreamOrStringMap = exports.isStreamMap = exports.isStringMapOpt = exports.isStringMap = void 0;
 const isStream = require("is-stream");
 function isStringMap(obj) {
     if (typeof (obj) != 'object')

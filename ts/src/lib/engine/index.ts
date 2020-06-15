@@ -30,7 +30,7 @@ export interface engineTest {
     () :string;
 }
 export interface engineKill {
-    (jobList:jobLib.jobObject[]) :events.EventEmitter;
+    (jobList:jobLib.jobObject[], overrideBinary?:string) :events.EventEmitter;
 }
 export interface engineInterface {
     generateHeader : engineHeaderFunc;

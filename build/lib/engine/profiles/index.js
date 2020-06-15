@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.defaultGetPreprocessorContainer = exports.defaultGetPreprocessorString = exports.isProfile = void 0;
 /* Now that we have a profile typeguard we should consider loading profile jit */
 const logger_js_1 = require("../../../logger.js");
 const cType = require("../../../commonTypes.js");

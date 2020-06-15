@@ -434,10 +434,8 @@ export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, 
         jobTemplate.ttl = jobOpt.ttl;
     if ('socket' in jobOpt)
         jobTemplate.socket = jobOpt.socket;
-
-        
-
-
+    if ('engineOverride' in jobOpt)
+        jobTemplate.engineOverride = jobOpt.engineOverride;
 
     logger.debug(`Following jobTemplate was successfully buildt \n ${util.format(jobTemplate)}`);
     let newJob = new jobLib.jobObject(jobTemplate, jobID);

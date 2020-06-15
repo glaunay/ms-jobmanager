@@ -90,30 +90,24 @@ export function isJobOptProxy(data: any): data is jobOptProxyInterface {
     return true;
 }
 
+interface engineOverrideInterface {
+    engineSpecs:engineLib.engineSpecs,
+    binariesSpec:engineLib.BinariesSpec
+}
+
  export interface jobOptInterface extends jobOptProxyInterface{
     engine : engineLib.engineInterface, // it is added by the jm.push method
-   // queueBin : string,
-    //submitBin : string,
-    //script? : string|streamLib.Readable,
-
-    //jobProfile?: string;
-
+    
+    // To allow mutliple slurm user 
+    engineOverride?:engineOverrideInterface,
+   
     port : number, // JobManager MicroService Coordinates
     adress : string, // ""
     workDir : string,
-
-// Opt, set by object setter
-    //cmd? : string,
-    //exportVar? : cType.stringMap,
-    //inputs? : string [],
-
-    //tagTask? : string,
     emulated? : boolean,
-    //namespace? :string,
     cwd? : string,
     cwdClone? : boolean,
-    ttl? : number,
-    //modules? : string []
+    ttl? : number
 }
 
 
@@ -425,8 +419,9 @@ export class jobObject extends jobProxy implements jobOptInterface  {
     ERR_jokers :number = 3; //  Number of time a job is allowed to be resubmitted if its stderr is non null
     MIA_jokers :number = 3; //  Number of time
     inputDir : string;
-    engine : engineLib.engineInterface;
     
+    engine : engineLib.engineInterface;
+
     fromConsumerMS : boolean = false;
     /*
     jobProfile? : string;   
@@ -459,7 +454,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
     constructor( jobOpt :jobOptInterface, uuid? :string ){
         super(jobOpt, uuid);
         
-        this.engine =  jobOpt.engine;
+        
       //  this.queueBin =  jobOpt.queueBin;
 
         this.port = jobOpt.port;
@@ -477,8 +472,41 @@ export class jobObject extends jobProxy implements jobOptInterface  {
             this.cwdClone = jobOpt.cwdClone;
         if ('ttl' in jobOpt)
             this.ttl = jobOpt.ttl;
-     
 
+        
+        //Default JM-level engine
+        this.engine =  jobOpt.engine;
+        if (! ("engineOverride" in jobOpt) )
+            return;
+        
+        // Job specific engine
+        const templateJobEngine = jobOpt['engineOverride'];
+        if(!templateJobEngine) {
+            logger.error("Undefined job engine value using default engine");
+            return;
+        }
+        if (!templateJobEngine.hasOwnProperty("engineSpecs") ) {
+            logger.error("Specified job engine lacks \"engineSpecs\" key using default engine");
+            return;
+        }
+        if(!engineLib.isEngineSpec(templateJobEngine.engineSpecs)) {
+            logger.error(`Specified job engine is unregistred \"${templateJobEngine.engineSpecs}\"`);
+            return;   
+        }
+        
+        if (templateJobEngine.hasOwnProperty("binariesSpec") ) {
+            if(!templateJobEngine.binariesSpec) {
+                logger.error("Specified job engine features an undefined \"binariesSpec\" object using defaule engine");
+                return;
+            }
+            if(!engineLib.isBinariesSpec(templateJobEngine.binariesSpec)) {
+                logger.error(`Specified job engine is unregistred \"${templateJobEngine.binariesSpec}\"`);
+                return;   
+            }
+        }
+        logger.info(`Overidding default engine with ${templateJobEngine.engineSpecs} ${templateJobEngine.binariesSpec??""}`);
+
+        this.engine = engineLib.getEngine(templateJobEngine.engineSpecs, templateJobEngine.binariesSpec);
     }
     /*
 
@@ -579,7 +607,6 @@ export class jobObject extends jobProxy implements jobOptInterface  {
 
         logger.debug(`submitting w/, ${this.engine.submitBin} ${submitArgArray}`);
         logger.debug(`workdir : > ${this.workDir} <`);
-
         let child = childProc.spawn(this.engine.submitBin, [fname]
         , {
             cwd: this.workDir,           

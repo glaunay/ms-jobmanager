@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.push = exports.start = exports.eLiveMemory = void 0;
 const fs = require("fs"); // file system
 const events = require("events");
 const net = require("net");
@@ -358,6 +359,8 @@ function push(jobProfileString, jobOpt /*jobOptInterface*/, namespace) {
         jobTemplate.ttl = jobOpt.ttl;
     if ('socket' in jobOpt)
         jobTemplate.socket = jobOpt.socket;
+    if ('engineOverride' in jobOpt)
+        jobTemplate.engineOverride = jobOpt.engineOverride;
     logger_js_1.logger.debug(`Following jobTemplate was successfully buildt \n ${util.format(jobTemplate)}`);
     let newJob = new jobLib.jobObject(jobTemplate, jobID);
     if ('fromConsumerMS' in jobOpt)

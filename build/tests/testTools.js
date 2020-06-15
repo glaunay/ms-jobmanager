@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.performDummyPush = exports.createJobOpt = exports.selfTest = void 0;
 const logger = require("winston");
 const figures = require("figures");
 function selfTest(jm, n) {

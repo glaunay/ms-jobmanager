@@ -1,13 +1,6 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.jobObject = exports.jobProxy = exports.jobInputs = exports.isJobOptProxy = void 0;
 const events = require("events");
 const uuidv4 = require("uuid/v4");
 const fs = require("fs");
@@ -19,6 +12,9 @@ const md5 = require("md5");
 const streamLib = require("stream");
 //import spawn = require('spawn');
 const logger_js_1 = require("./logger.js");
+//var Readable = require('stream').Readable;
+//var spawn = require('child_process').spawn;
+const engineLib = require("./lib/engine/index.js");
 const cType = require("./commonTypes.js");
 const job_manager_server_1 = require("./nativeJS/job-manager-server");
 const crypto = require("crypto");
@@ -291,6 +287,7 @@ class jobProxy extends events.EventEmitter {
 exports.jobProxy = jobProxy;
 class jobObject extends jobProxy {
     constructor(jobOpt, uuid) {
+        var _a;
         super(jobOpt, uuid);
         this.inputSymbols = {};
         this.ERR_jokers = 3; //  Number of time a job is allowed to be resubmitted if its stderr is non null
@@ -299,7 +296,6 @@ class jobObject extends jobProxy {
         // Opt, set by object setter
         this.emulated = false;
         this.cwdClone = false;
-        this.engine = jobOpt.engine;
         //  this.queueBin =  jobOpt.queueBin;
         this.port = jobOpt.port;
         this.adress = jobOpt.adress;
@@ -313,6 +309,36 @@ class jobObject extends jobProxy {
             this.cwdClone = jobOpt.cwdClone;
         if ('ttl' in jobOpt)
             this.ttl = jobOpt.ttl;
+        //Default JM-level engine
+        this.engine = jobOpt.engine;
+        if (!("engineOverride" in jobOpt))
+            return;
+        // Job specific engine
+        const templateJobEngine = jobOpt['engineOverride'];
+        if (!templateJobEngine) {
+            logger_js_1.logger.error("Undefined job engine value using default engine");
+            return;
+        }
+        if (!templateJobEngine.hasOwnProperty("engineSpecs")) {
+            logger_js_1.logger.error("Specified job engine lacks \"engineSpecs\" key using default engine");
+            return;
+        }
+        if (!engineLib.isEngineSpec(templateJobEngine.engineSpecs)) {
+            logger_js_1.logger.error(`Specified job engine is unregistred \"${templateJobEngine.engineSpecs}\"`);
+            return;
+        }
+        if (templateJobEngine.hasOwnProperty("binariesSpec")) {
+            if (!templateJobEngine.binariesSpec) {
+                logger_js_1.logger.error("Specified job engine features an undefined \"binariesSpec\" object using defaule engine");
+                return;
+            }
+            if (!engineLib.isBinariesSpec(templateJobEngine.binariesSpec)) {
+                logger_js_1.logger.error(`Specified job engine is unregistred \"${templateJobEngine.binariesSpec}\"`);
+                return;
+            }
+        }
+        logger_js_1.logger.info(`Overidding default engine with ${templateJobEngine.engineSpecs} ${(_a = templateJobEngine.binariesSpec) !== null && _a !== void 0 ? _a : ""}`);
+        this.engine = engineLib.getEngine(templateJobEngine.engineSpecs, templateJobEngine.binariesSpec);
     }
     /*
 
@@ -430,23 +456,19 @@ class jobObject extends jobProxy {
         let fname = this.workDir + '/' + this.id + '.batch';
         this.submit(fname);
     }
-    stdout() {
-        return __awaiter(this, void 0, void 0, function* () {
-            logger_js_1.logger.debug(`async stdout call at ${this.id} `);
-            let fNameStdout = this.fileOut ? this.fileOut : this.id + ".out";
-            let fPath = this.workDir + '/' + fNameStdout;
-            let stdoutStream = yield dumpAndWrap(fPath, this._stdout);
-            return stdoutStream;
-        });
+    async stdout() {
+        logger_js_1.logger.debug(`async stdout call at ${this.id} `);
+        let fNameStdout = this.fileOut ? this.fileOut : this.id + ".out";
+        let fPath = this.workDir + '/' + fNameStdout;
+        let stdoutStream = await dumpAndWrap(fPath, this._stdout);
+        return stdoutStream;
     }
-    stderr() {
-        return __awaiter(this, void 0, void 0, function* () {
-            logger_js_1.logger.debug(`async stderr call at ${this.id} `);
-            let fNameStderr = this.fileErr ? this.fileErr : this.id + ".err";
-            let fPath = this.workDir + '/' + fNameStderr;
-            let stderrStream = yield dumpAndWrap(fPath, this._stderr);
-            return stderrStream;
-        });
+    async stderr() {
+        logger_js_1.logger.debug(`async stderr call at ${this.id} `);
+        let fNameStderr = this.fileErr ? this.fileErr : this.id + ".err";
+        let fPath = this.workDir + '/' + fNameStderr;
+        let stderrStream = await dumpAndWrap(fPath, this._stderr);
+        return stderrStream;
     }
     respawn(fStdoutName, fStderrName, workPath) {
         this.fileOut = fStdoutName;

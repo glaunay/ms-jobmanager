@@ -87,7 +87,7 @@ export class slurmEngine implements engineLib.engineInterface {
                 'cancelError', {String} message : An error occured during job cancelation
                 'listError', {String} message : An error occured during joblisting"
 */
-    kill(jobList:engineLib.jobObject[]) {
+    kill(jobList:engineLib.jobObject[], overrideBinary?:string) {
         var emitter = new events.EventEmitter();
 
         var targetJobID = jobList.map(function(jobObj) {
@@ -107,7 +107,7 @@ export class slurmEngine implements engineLib.engineInterface {
                     if (targetJobID.indexOf(uuid) >= 0)
                         targetProcess.push(squeueLookupDict.id[i]);
                 });
-                _kill(self, targetProcess, emitter);
+                _kill(self, targetProcess, emitter, overrideBinary);
             });
     
         return emitter;
@@ -168,13 +168,13 @@ function _preprocessorDump (id:string, preprocessorOpt:cType.stringMap):string {
     return string;
 }
 
-function _kill(engine:slurmEngine, processIDs:number[], emitter:events.EventEmitter) {
+function _kill(engine:slurmEngine, processIDs:number[], emitter:events.EventEmitter, overrideBinary?:string) {
     let exec_cmd = childP.exec;
     if (processIDs.length == 0) {
         emitter.emit('emptyExit');
         return;
     }
-    exec_cmd(engine.cancelBin + ' ' + processIDs.join(' '), function(err, stdout, stderr) {
+    exec_cmd(`${overrideBinary ?? engine.cancelBin} ${processIDs.join(' ')}`, function(err, stdout, stderr) {
         if (err) {
             emitter.emit('cancelError', err);
             return;
