@@ -57,7 +57,7 @@ class slurmEngine {
         this.queueBin = sysSettings[sysKeyProfile].binaries.queueBin;
         this.cancelBin = sysSettings[sysKeyProfile].binaries.cancelBin;
         if (sysSettings[sysKeyProfile].hasOwnProperty('iCache')) {
-            this.iCache = sysSettings.iCache;
+            this.iCache = sysSettings[sysKeyProfile].iCache;
         }
     }
     generateHeader(jobID, jobProfileKey) {

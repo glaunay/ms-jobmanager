@@ -295,11 +295,9 @@ class jobObject extends jobProxy {
         // Opt, set by object setter
         this.emulated = false;
         this.cwdClone = false;
-        //  this.queueBin =  jobOpt.queueBin;
         this.port = jobOpt.port;
         this.adress = jobOpt.adress;
         this.workDir = jobOpt.workDir;
-        this.inputDir = this.workDir + "/input";
         if ('emulated' in jobOpt)
             this.emulated = jobOpt.emulated;
         if ('cwd' in jobOpt)
@@ -312,6 +310,7 @@ class jobObject extends jobProxy {
         this.engine = jobOpt.engine;
         if (!("sysSettingsKey" in jobOpt))
             return;
+        logger_js_1.logger.debug(`sysSettingsKey in jobOpt ${jobOpt.sysSettingsKey}`);
         // Job specific engine
         const sysSettingsKey = jobOpt['sysSettingsKey'];
         if (!sysSettingsKey) {
@@ -354,9 +353,9 @@ class jobObject extends jobProxy {
     }
     start() {
         let self = this;
-        mkdirp(this.inputDir, function (err) {
+        mkdirp(`${this.workDir}/input`, function (err) {
             if (err) {
-                var msg = 'failed to create job ' + self.id + ' directory, ' + err;
+                var msg = 'failed to create job w/ ID ' + self.id + ' directory, ' + err;
                 logger_js_1.logger.error(msg);
                 self.emit('folderCreationError', msg, err, self);
                 return;
@@ -406,7 +405,7 @@ class jobObject extends jobProxy {
             return;
         }
         let self = this;
-        this.inputs.write(this.inputDir)
+        this.inputs.write(`${this.workDir}/input`)
             .on('OK', () => {
             let self = this;
             let fname = this.workDir + '/' + this.id + '.batch';

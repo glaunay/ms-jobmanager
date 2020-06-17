@@ -72,9 +72,9 @@ export class slurmEngine implements engineLib.engineInterface {
         const sysSettings:any = engineSys.definitions;
         this.submitBin = sysSettings[sysKeyProfile].binaries.submitBin;
         this.queueBin  = sysSettings[sysKeyProfile].binaries.queueBin;
-        this.cancelBin = sysSettings[sysKeyProfile].binaries.cancelBin;
+        this.cancelBin = sysSettings[sysKeyProfile].binaries.cancelBin;      
         if ( sysSettings[sysKeyProfile].hasOwnProperty('iCache') ) {
-            this.iCache = sysSettings.iCache;
+            this.iCache = sysSettings[sysKeyProfile].iCache;
         }
     }
 

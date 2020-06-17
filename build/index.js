@@ -355,7 +355,7 @@ function push(jobProfileString, jobOpt /*jobOptInterface*/, namespace) {
         jobTemplate.ttl = jobOpt.ttl;
     if ('socket' in jobOpt)
         jobTemplate.socket = jobOpt.socket;
-    if ('sysSettings' in jobOpt)
+    if ('sysSettingsKey' in jobOpt)
         jobTemplate.sysSettingsKey = jobOpt.sysSettingsKey;
     logger_js_1.logger.debug(`Following jobTemplate was successfully buildt \n ${util.format(jobTemplate)}`);
     let newJob = new jobLib.jobObject(jobTemplate, jobID);
@@ -363,10 +363,11 @@ function push(jobProfileString, jobOpt /*jobOptInterface*/, namespace) {
     // Check for intermediary folders in workdirpath
     // rootCache /job.iCache??""/ namespace ??"" / jobID
     if (namespace || newJob.engine.iCache) {
-        newJob.workDir = cacheDir ? `{cacheDir}/` : "";
-        newJob.workDir += newJob.engine.iCache ? `{newJob.engine.iCache}/` : "";
-        newJob.workDir += namespace ? `{namespace}/` : "";
+        newJob.workDir = cacheDir ? `${cacheDir}/` : "";
+        newJob.workDir += newJob.engine.iCache ? `${newJob.engine.iCache}/` : "";
+        newJob.workDir += namespace ? `${namespace}/` : "";
         newJob.workDir += jobID;
+        logger_js_1.logger.debug(`Redefined job workDir ${newJob.workDir}`);
     }
     /*
     if (namespace) {
