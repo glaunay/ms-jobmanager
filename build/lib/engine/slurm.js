@@ -1,16 +1,13 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.slurmEngine = void 0;
 const events = require("events");
 const util = require("util");
 const childP = require("child_process");
 const logger_js_1 = require("../../logger.js");
-const slurm_js_1 = __importDefault(require("./profiles/slurm.js"));
+const slurm_js_1 = require("./profiles/slurm.js");
 const index_js_1 = require("./profiles/index.js");
-let localProfiles = slurm_js_1.default;
+let localProfiles = slurm_js_1.profiles;
 let preprocessorMapper = {
     nNodes: function (v) {
         return "#SBATCH -N " + v + " # Number of nodes, aka number of worker \n";
@@ -50,8 +47,21 @@ class slurmEngine {
             this.cancelBin = engineBinaries.cancelBin;
         }
     }
-    generateHeader(jobID, jobProfileKey, workDir) {
-        let processorType = index_js_1.defaultGetPreprocessorContainer(jobProfileKey, slurm_js_1.default);
+    setSysProfile(sysKeyProfile) {
+        if (!slurm_js_1.engineSys.definitions.hasOwnProperty(sysKeyProfile)) {
+            logger_js_1.logger.error(`No such sysProfile {sysKeyProfile}`);
+            return;
+        }
+        const sysSettings = slurm_js_1.engineSys.definitions;
+        this.submitBin = sysSettings[sysKeyProfile].binaries.submitBin;
+        this.queueBin = sysSettings[sysKeyProfile].binaries.queueBin;
+        this.cancelBin = sysSettings[sysKeyProfile].binaries.cancelBin;
+        if (sysSettings[sysKeyProfile].hasOwnProperty('iCache')) {
+            this.iCache = sysSettings.iCache;
+        }
+    }
+    generateHeader(jobID, jobProfileKey) {
+        let processorType = index_js_1.defaultGetPreprocessorContainer(jobProfileKey, slurm_js_1.profiles);
         logger_js_1.logger.debug(`preprocesor container:\n${util.format(processorType)}`);
         return _preprocessorDump(jobID, processorType);
     }

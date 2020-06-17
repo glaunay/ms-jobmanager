@@ -4,12 +4,14 @@ import util = require('util');
 import childP = require('child_process');
 import {logger} from '../../logger.js';
 
+
+
 //import engineInterface} from 'index.js';
 import engineLib = require('./index.js');
 import cType = require('../../commonTypes.js');
 import {profileInterface, isProfile} from './profiles/index.js';
 
-import profiles from './profiles/slurm.js'
+import {profiles, engineSys} from './profiles/slurm.js';
 
 import {defaultGetPreprocessorContainer as getPreprocessor} from './profiles/index.js';
 
@@ -53,16 +55,30 @@ export class slurmEngine implements engineLib.engineInterface {
     cancelBin:string = '/opt/slurm/bin/scancel';
     queueBin:string  = '/opt/slurm/bin/squeue';
     specs:engineLib.engineSpecs='slurm';
-    
+    iCache?:string;
+
     constructor(engineBinaries:engineLib.BinariesSpec|undefined){
         if (engineBinaries){
             this.submitBin = engineBinaries.submitBin
             this.queueBin = engineBinaries.queueBin
             this.cancelBin = engineBinaries.cancelBin
         }
-        
     }
-    generateHeader (jobID:string, jobProfileKey:string|undefined, workDir:string):string {
+    setSysProfile(sysKeyProfile:string) {
+        if (!engineSys.definitions.hasOwnProperty(sysKeyProfile)) {
+            logger.error(`No such sysProfile {sysKeyProfile}`);
+            return;
+        }
+        const sysSettings:any = engineSys.definitions;
+        this.submitBin = sysSettings[sysKeyProfile].binaries.submitBin;
+        this.queueBin  = sysSettings[sysKeyProfile].binaries.queueBin;
+        this.cancelBin = sysSettings[sysKeyProfile].binaries.cancelBin;
+        if ( sysSettings[sysKeyProfile].hasOwnProperty('iCache') ) {
+            this.iCache = sysSettings.iCache;
+        }
+    }
+
+    generateHeader (jobID:string, jobProfileKey:string|undefined):string {
         let processorType:{} = getPreprocessor(jobProfileKey, profiles);
         logger.debug(`preprocesor container:\n${util.format(processorType)}`);
         return _preprocessorDump(jobID, processorType);

@@ -16,7 +16,11 @@ class nixLikeEngine {
         this.submitBin = '/bin/bash';
         this.specs = 'emulate';
     }
-    generateHeader(jobID, jobProfileKey, workDir) {
+    /* GL 2020/15/06  dirty hack, not intended, for now, to be used in nixLike context only slurm */
+    setSysProfile(a) {
+        logger_js_1.logger.info("nixLike Engine setSysProfile call");
+    }
+    generateHeader(jobID, jobProfileKey) {
         return "# This is local default header\n" + index_js_1.defaultGetPreprocessorString(jobProfileKey, localProfiles /*,jobID,*/);
     }
     list() {

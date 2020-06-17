@@ -1,4 +1,27 @@
-let profiles = {
+
+const engineSys = {
+    "comments": "Definition of specific submission/kill binaries and intermediary cache folders",
+    "definitions": {
+        "crispr-dev": {
+            "binaries": {
+                "submitBin" : "/data/www_dev/crispr/bin/slurm/bin/sbatch",
+                "cancelBin" : "/data/www_dev/crispr/bin/slurm/bin/scancel",
+                "queueBin"  : "/data/www_dev/crispr/bin/slurm/bin/squeue"
+            },
+            "iCache" : "crispr/tmp"
+        },
+        "mad-dev": {
+            "binaries": {
+                "submitBin" : "/data/www_dev/mad/bin/slurm/bin/sbatch",
+                "cancelBin" : "/data/www_dev/mad/bin/slurm/bin/scancel",
+                "queueBin"  : "/data/www_dev/mad/bin/slurm/bin/squeue"
+            },
+            "iCache" : "mad/tmp"
+        }
+    }
+}; 
+
+const profiles = {
     "comments": "Definition of slurms set of preprocessors options values",
     "definitions": {
         "ifb-slurm": {
@@ -77,5 +100,5 @@ let profiles = {
     }
 }
 
-export default profiles;
+export {profiles, engineSys};
 

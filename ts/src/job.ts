@@ -90,16 +90,11 @@ export function isJobOptProxy(data: any): data is jobOptProxyInterface {
     return true;
 }
 
-interface engineOverrideInterface {
-    engineSpecs:engineLib.engineSpecs,
-    binariesSpec:engineLib.BinariesSpec
-}
-
  export interface jobOptInterface extends jobOptProxyInterface{
     engine : engineLib.engineInterface, // it is added by the jm.push method
     
     // To allow mutliple slurm user 
-    engineOverride?:engineOverrideInterface,
+    sysSettingsKey?:string,
    
     port : number, // JobManager MicroService Coordinates
     adress : string, // ""
@@ -476,15 +471,20 @@ export class jobObject extends jobProxy implements jobOptInterface  {
         
         //Default JM-level engine
         this.engine =  jobOpt.engine;
-        if (! ("engineOverride" in jobOpt) )
+        if (! ("sysSettingsKey" in jobOpt) )
             return;
         
         // Job specific engine
-        const templateJobEngine = jobOpt['engineOverride'];
-        if(!templateJobEngine) {
-            logger.error("Undefined job engine value using default engine");
+        const sysSettingsKey = jobOpt['sysSettingsKey'];
+        if(!sysSettingsKey) {
+            logger.error("Undefined value for sysSettings of job engine, using default engine");
             return;
         }
+        this.engine = engineLib.getEngine(this.engine.specs);
+        logger.info(`Overidding default engine for ${this.engine.specs} w/ settings ${sysSettingsKey}`);
+        this.engine.setSysProfile(sysSettingsKey);
+       
+        /*
         if (!templateJobEngine.hasOwnProperty("engineSpecs") ) {
             logger.error("Specified job engine lacks \"engineSpecs\" key using default engine");
             return;
@@ -505,8 +505,9 @@ export class jobObject extends jobProxy implements jobOptInterface  {
             }
         }
         logger.info(`Overidding default engine with ${templateJobEngine.engineSpecs} ${templateJobEngine.binariesSpec??""}`);
-
-        this.engine = engineLib.getEngine(templateJobEngine.engineSpecs, templateJobEngine.binariesSpec);
+        
+          this.engine = engineLib.getEngine(templateJobEngine.engineSpecs, templateJobEngine.binariesSpec);
+          */
     }
     /*
 

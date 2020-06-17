@@ -287,7 +287,6 @@ class jobProxy extends events.EventEmitter {
 exports.jobProxy = jobProxy;
 class jobObject extends jobProxy {
     constructor(jobOpt, uuid) {
-        var _a;
         super(jobOpt, uuid);
         this.inputSymbols = {};
         this.ERR_jokers = 3; //  Number of time a job is allowed to be resubmitted if its stderr is non null
@@ -311,34 +310,41 @@ class jobObject extends jobProxy {
             this.ttl = jobOpt.ttl;
         //Default JM-level engine
         this.engine = jobOpt.engine;
-        if (!("engineOverride" in jobOpt))
+        if (!("sysSettingsKey" in jobOpt))
             return;
         // Job specific engine
-        const templateJobEngine = jobOpt['engineOverride'];
-        if (!templateJobEngine) {
-            logger_js_1.logger.error("Undefined job engine value using default engine");
+        const sysSettingsKey = jobOpt['sysSettingsKey'];
+        if (!sysSettingsKey) {
+            logger_js_1.logger.error("Undefined value for sysSettings of job engine, using default engine");
             return;
         }
-        if (!templateJobEngine.hasOwnProperty("engineSpecs")) {
-            logger_js_1.logger.error("Specified job engine lacks \"engineSpecs\" key using default engine");
+        this.engine = engineLib.getEngine(this.engine.specs);
+        logger_js_1.logger.info(`Overidding default engine for ${this.engine.specs} w/ settings ${sysSettingsKey}`);
+        this.engine.setSysProfile(sysSettingsKey);
+        /*
+        if (!templateJobEngine.hasOwnProperty("engineSpecs") ) {
+            logger.error("Specified job engine lacks \"engineSpecs\" key using default engine");
             return;
         }
-        if (!engineLib.isEngineSpec(templateJobEngine.engineSpecs)) {
-            logger_js_1.logger.error(`Specified job engine is unregistred \"${templateJobEngine.engineSpecs}\"`);
+        if(!engineLib.isEngineSpec(templateJobEngine.engineSpecs)) {
+            logger.error(`Specified job engine is unregistred \"${templateJobEngine.engineSpecs}\"`);
             return;
         }
-        if (templateJobEngine.hasOwnProperty("binariesSpec")) {
-            if (!templateJobEngine.binariesSpec) {
-                logger_js_1.logger.error("Specified job engine features an undefined \"binariesSpec\" object using defaule engine");
+        
+        if (templateJobEngine.hasOwnProperty("binariesSpec") ) {
+            if(!templateJobEngine.binariesSpec) {
+                logger.error("Specified job engine features an undefined \"binariesSpec\" object using defaule engine");
                 return;
             }
-            if (!engineLib.isBinariesSpec(templateJobEngine.binariesSpec)) {
-                logger_js_1.logger.error(`Specified job engine is unregistred \"${templateJobEngine.binariesSpec}\"`);
+            if(!engineLib.isBinariesSpec(templateJobEngine.binariesSpec)) {
+                logger.error(`Specified job engine is unregistred \"${templateJobEngine.binariesSpec}\"`);
                 return;
             }
         }
-        logger_js_1.logger.info(`Overidding default engine with ${templateJobEngine.engineSpecs} ${(_a = templateJobEngine.binariesSpec) !== null && _a !== void 0 ? _a : ""}`);
-        this.engine = engineLib.getEngine(templateJobEngine.engineSpecs, templateJobEngine.binariesSpec);
+        logger.info(`Overidding default engine with ${templateJobEngine.engineSpecs} ${templateJobEngine.binariesSpec??""}`);
+        
+          this.engine = engineLib.getEngine(templateJobEngine.engineSpecs, templateJobEngine.binariesSpec);
+          */
     }
     /*
 

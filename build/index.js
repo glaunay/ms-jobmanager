@@ -13,6 +13,7 @@ const jobLib = require("./job");
 const engineLib = require("./lib/engine/index.js");
 const cType = require("./commonTypes.js");
 const jmServer = require("./nativeJS/job-manager-server.js");
+//import _ = require('./nativeJS/job-manager-client.js');
 const liveMemory = require("./lib/pool.js");
 const clientWH = require("ms-warehouse");
 clientWH.setLogger(logger_js_1.logger);
@@ -130,7 +131,6 @@ function start(opt) {
     }
     engine = engineLib.getEngine(opt.engineSpec, opt.engineBinaries);
     emulator = opt.engineSpec == 'emulate' ? true : false;
-    cacheDir = opt.cacheDir + '/' + scheduler_id;
     if (opt.tcp)
         TCPip = opt.tcp;
     if (opt.port)
@@ -148,8 +148,6 @@ function start(opt) {
         nWorker = opt.nWorker;
     if (opt.cycleLength)
         wardenPulse = parseInt(opt.cycleLength);
-    if (opt.forceCache)
-        cacheDir = opt.forceCache;
     if (opt.warehouseAddress)
         addressWH = opt.warehouseAddress;
     if (opt.warehousePort)
@@ -160,17 +158,27 @@ function start(opt) {
             portSocket: opt.warehousePort
         }).then(() => { })
             .catch(() => { });
-    //jobProfiles = opt.jobProfiles;
-    logger_js_1.logger.debug("Attempting to create cache for process at " + cacheDir);
-    try {
-        fs.mkdirSync(cacheDir);
-    }
-    catch (e) {
-        if (e.code != 'EEXIST') {
-            logger_js_1.logger.error(`Can't create cache folder reason:\n${e}}`);
-            throw e;
+    // cacheDir managment
+    cacheDir = opt.forceCache ? opt.cacheDir : opt.cacheDir + '/' + scheduler_id;
+    if (opt.forceCache) {
+        logger_js_1.logger.info("Checking force cache access");
+        if (!fs.existsSync(cacheDir)) {
+            logger_js_1.logger.console.error(`cacheDir ${cacheDir} is invalid path`);
+            throw ('cacheDir error');
         }
-        logger_js_1.logger.error("Cache found already found at " + cacheDir);
+    }
+    else {
+        logger_js_1.logger.debug("Attempting to create cache for process at " + cacheDir);
+        try {
+            fs.mkdirSync(cacheDir);
+        }
+        catch (e) {
+            if (e.code != 'EEXIST') {
+                logger_js_1.logger.error(`Can't create cache folder reason:\n${e}}`);
+                throw e;
+            }
+            logger_js_1.logger.error("Cache found already found at " + cacheDir);
+        }
     }
     logger_js_1.logger.debug('[' + TCPip + '] opening socket at port ' + TCPport);
     let s = _openSocket(TCPport);
@@ -191,6 +199,8 @@ engine type : ${engine.specs}
 internal ip/port : ${TCPip}/${TCPport}
 consumer port : ${opt.microServicePort}
 worker pool size : ${nWorker}
+cache directory : ${cacheDir}
+[DEFAULT BINARIES]
 submit binary : ${engine.submitBin}
 queue binary : ${engine.queueBin ? engine.queueBin : "No one"}
 cancel binary : ${engine.cancelBin ? engine.cancelBin : "No one"}
@@ -316,22 +326,8 @@ function push(jobProfileString, jobOpt /*jobOptInterface*/, namespace) {
     if (jobOpt.hasOwnProperty('id'))
         if (jobOpt.id)
             jobID = jobOpt.id;
-    let workDir;
-    if (namespace) {
-        try {
-            fs.mkdirSync(cacheDir + '/' + namespace);
-        }
-        catch (err) {
-            if (err.code != 'EEXIST') {
-                logger_js_1.logger.error("Namespace " + cacheDir + '/' + namespace + ' already exists.');
-                throw err;
-            }
-        }
-        workDir = cacheDir + '/' + namespace + '/' + jobID;
-    }
-    else {
-        workDir = cacheDir + '/' + jobID;
-    }
+    //Default job working directory maybe redifiedn later
+    let workDir = cacheDir + '/' + jobID;
     /* Building a jobOptInterface litteral out of the jobOpt function parameter */
     let jobTemplate = {
         // "engineHeader": engine.generateHeader(jobID, jobProfileString, workDir),
@@ -359,10 +355,33 @@ function push(jobProfileString, jobOpt /*jobOptInterface*/, namespace) {
         jobTemplate.ttl = jobOpt.ttl;
     if ('socket' in jobOpt)
         jobTemplate.socket = jobOpt.socket;
-    if ('engineOverride' in jobOpt)
-        jobTemplate.engineOverride = jobOpt.engineOverride;
+    if ('sysSettings' in jobOpt)
+        jobTemplate.sysSettingsKey = jobOpt.sysSettingsKey;
     logger_js_1.logger.debug(`Following jobTemplate was successfully buildt \n ${util.format(jobTemplate)}`);
     let newJob = new jobLib.jobObject(jobTemplate, jobID);
+    // All engine parameters are set at this stage, working on folder creations should be safe
+    // Check for intermediary folders in workdirpath
+    // rootCache /job.iCache??""/ namespace ??"" / jobID
+    if (namespace || newJob.engine.iCache) {
+        newJob.workDir = cacheDir ? `{cacheDir}/` : "";
+        newJob.workDir += newJob.engine.iCache ? `{newJob.engine.iCache}/` : "";
+        newJob.workDir += namespace ? `{namespace}/` : "";
+        newJob.workDir += jobID;
+    }
+    /*
+    if (namespace) {
+        try { fs.mkdirSync(cacheDir + '/' + namespace); }
+        catch (err) {
+            if (err.code != 'EEXIST') {
+                logger.error("Namespace " + cacheDir + '/' + namespace + ' already exists.');
+                throw err;
+            }
+        }
+        workDir = cacheDir + '/' + namespace + '/' + jobID;
+    } else {
+        workDir = cacheDir + '/' + jobID;
+    }
+    */
     if ('fromConsumerMS' in jobOpt)
         newJob.fromConsumerMS = jobOpt.fromConsumerMS;
     // 3 outcomes

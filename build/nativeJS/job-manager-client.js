@@ -9,8 +9,8 @@ let util = require('util');
 let socket;
 let stream = require('stream');
 let events = require('events');
-let my_logger = require("../logger.js")
-let logger = my_logger.logger
+let my_logger = require("../logger.js");
+let logger = my_logger.logger;
 /*
     Defining object to take care of job sumbissions
 */
@@ -99,7 +99,7 @@ class jobAccumulator extends events.EventEmitter {
             'jobOpt': jobOpt,
             'status': 'idle'
         });
-        logger.silly(`appendToQueue ${job.id}`)
+        logger.silly(`appendToQueue ${job.id}`);
         if (this.isIdle())
             this.pulse();
         return job;
@@ -146,7 +146,7 @@ class jobAccumulator extends events.EventEmitter {
         return job;
     }
     getJobObject(uuid) {
-        logger.silly(`getJobObject ${uuid}`)
+        logger.silly(`getJobObject ${uuid}`);
         if (this.jobsPool.hasOwnProperty(uuid))
             return this.jobsPool[uuid];
         logger.error(`job id ${uuid} is not found in local jobsPool`);
@@ -157,37 +157,36 @@ class jobAccumulator extends events.EventEmitter {
         logger.debug("Binding accumulator to socket");
         this.socket = socket;
         socket.on('jobStart', (data) => {
-            logger.silly(`Client : socket on jobStart`)
+            logger.silly(`Client : socket on jobStart`);
             // Maybe do smtg
             // data = JSON.parse(data);
         });
         let self = this;
         socket.on('bounced', (d) => {
-            logger.silly(`Client : socket on bounced`)
+            logger.silly(`Client : socket on bounced`);
             logger.debug(`Job ${util.format(d)} was bounced !`);
             self.jobsPromisesReject[d.jobID]({ 'type': 'bouncing', jobID: d.jobID });
         });
         socket.on('granted', (d) => {
-            logger.silly(`Client : socket on granted`)
+            logger.silly(`Client : socket on granted`);
             logger.debug(`Job ${util.format(d)} was granted !`);
             self.jobsPromisesResolve[d.jobID](d.jobID);
         });
         socket.on('lostJob', (_jobSerial) => {
-            logger.silly(`Client : socket on lostJob`)
-            let jobSerial = JSON.parse(_jobSerial)
-            logger.error(`lostJob ${jobSerial.id}`)
+            logger.silly(`Client : socket on lostJob`);
+            let jobSerial = JSON.parse(_jobSerial);
+            logger.error(`lostJob ${jobSerial.id}`);
             let jRef = this.getJobObject(jobSerial.id);
             if (!jRef)
                 return;
             logger.error(`Following job not found in the process pool ${jRef.id}`);
-            logger.debug(util.format(jRef))
+            logger.debug(util.format(jRef));
             jRef.emit('lostJob', jRef);
             self.deleteJob(jobSerial.id);
         });
         //  *          'listError, {String}error) : the engine failed to list process along with error message
-
         socket.on('fsFatalError', (msg, err, jobID) => {
-            logger.silly(`Client : socket on fsFatalError`)
+            logger.silly(`Client : socket on fsFatalError`);
             let jRef = this.getJobObject(jobID);
             if (!jRef)
                 return;
@@ -196,7 +195,7 @@ class jobAccumulator extends events.EventEmitter {
         });
         ['scriptSetPermissionError', 'scriptWriteError', 'scriptReadError', 'inputError'].forEach((eName) => {
             socket.on(eName, (err, jobSerial) => {
-                logger.fatal(`socket.on error ${err} ${utils.format(jobSerial)}`)
+                logger.fatal(`socket.on error ${err} ${utils.format(jobSerial)}`);
                 let jRef = this.getJobObject(jobSerial.id);
                 if (!jRef)
                     return;
@@ -206,7 +205,7 @@ class jobAccumulator extends events.EventEmitter {
         });
         ['submitted', 'ready'].forEach((eName) => {
             socket.on(eName, (jobSerial) => {
-                logger.silly(`socket on ${eName}`)
+                logger.silly(`socket on ${eName}`);
                 let jRef = this.getJobObject(jobSerial.id);
                 if (!jRef)
                     return;
@@ -275,7 +274,7 @@ function push(data) {
         exportVar: undefined,
         jobProfile: "default",
         ttl: undefined,
-        sysSettingsKey:undefined,
+        sysSettingsKey: undefined,
         inputs: {}
     };
     for (let k in data) {

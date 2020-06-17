@@ -26,8 +26,11 @@ export class nixLikeEngine implements engineLib.engineInterface {
     constructor() {
 
     }
-
-    generateHeader (jobID:string, jobProfileKey:string|undefined, workDir:string):string {
+    /* GL 2020/15/06  dirty hack, not intended, for now, to be used in nixLike context only slurm */
+    setSysProfile(a:string) {
+        logger.info("nixLike Engine setSysProfile call");
+     }
+    generateHeader (jobID:string, jobProfileKey:string|undefined):string {
 
         return "# This is local default header\n" +  getPreprocessorString (jobProfileKey, localProfiles/*,jobID,*/);
     }

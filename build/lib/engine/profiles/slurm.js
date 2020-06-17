@@ -1,6 +1,29 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-let profiles = {
+exports.engineSys = exports.profiles = void 0;
+const engineSys = {
+    "comments": "Definition of specific submission/kill binaries and intermediary cache folders",
+    "definitions": {
+        "crispr-dev": {
+            "binaries": {
+                "submitBin": "/data/www_dev/crispr/bin/slurm/bin/sbatch",
+                "cancelBin": "/data/www_dev/crispr/bin/slurm/bin/scancel",
+                "queueBin": "/data/www_dev/crispr/bin/slurm/bin/squeue"
+            },
+            "iCache": "crispr/tmp"
+        },
+        "mad-dev": {
+            "binaries": {
+                "submitBin": "/data/www_dev/mad/bin/slurm/bin/sbatch",
+                "cancelBin": "/data/www_dev/mad/bin/slurm/bin/scancel",
+                "queueBin": "/data/www_dev/mad/bin/slurm/bin/squeue"
+            },
+            "iCache": "mad/tmp"
+        }
+    }
+};
+exports.engineSys = engineSys;
+const profiles = {
     "comments": "Definition of slurms set of preprocessors options values",
     "definitions": {
         "ifb-slurm": {},
@@ -77,4 +100,4 @@ let profiles = {
         }
     }
 };
-exports.default = profiles;
+exports.profiles = profiles;

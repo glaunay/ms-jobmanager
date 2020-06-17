@@ -18,6 +18,7 @@ function isBinariesSpec(binaries) {
     return isSetEqual(x, binariesKeys);
 }
 exports.isBinariesSpec = isBinariesSpec;
+//Returns new instance of engine Object
 function getEngine(engineName, engineBinaries) {
     //logger.info("Get engine " + Object.keys(engineBinaries))
     logger_js_1.logger.debug(`Asked engine symbol ${engineName}`);
@@ -41,7 +42,10 @@ class dummyEngine {
         this.submitBin = 'dummyExec';
     }
     //logger.info(engineBinaries)
-    generateHeader(a, b, c) {
+    setSysProfile(a) {
+        logger_js_1.logger.info("Dummy Engine setSysProfile call");
+    }
+    generateHeader(a, b) {
         return 'dummy Engine header';
     }
     list() {

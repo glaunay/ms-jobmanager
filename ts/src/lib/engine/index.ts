@@ -17,8 +17,9 @@ export interface engineListData {
         'status'?:    string[];
 }
 
-
-
+export interface setSysProfileFunc { // Redefine engine system settings using profiles.engineSys stringMap eg: progiles/slurm.ts
+    (profileName:string): void;
+}
 
 export interface engineHeaderFunc {
     (jobID:string, jobProfileKey:string|undefined, workDir:string) :string;
@@ -41,6 +42,8 @@ export interface engineInterface {
     kill : engineKill;
     testCommand : engineTest;
     specs:engineSpecs;
+    setSysProfile : setSysProfileFunc;
+    iCache?:string;
 }
 
 export type engineSpecs = "slurm" | "sge" | "emulate" | "dummy";
@@ -68,6 +71,7 @@ export interface preprocessorMapFn {
 }
 export type preprocessorMapperType = { [s:string] : preprocessorMapFn }
 
+//Returns new instance of engine Object
 export function getEngine(engineName?:engineSpecs, engineBinaries?:BinariesSpec): engineInterface{
     //logger.info("Get engine " + Object.keys(engineBinaries))
     logger.debug(`Asked engine symbol ${engineName}`);
@@ -97,8 +101,10 @@ export class dummyEngine implements engineInterface {
     specs:engineSpecs='dummy';
     submitBin:string = 'dummyExec';
     //logger.info(engineBinaries)
-
-    generateHeader (a : string, b : string|undefined, c : string):string {
+    setSysProfile(a:string) {
+       logger.info("Dummy Engine setSysProfile call");
+    }
+    generateHeader (a : string, b : string|undefined):string {
         return 'dummy Engine header';
     }
     list() {
