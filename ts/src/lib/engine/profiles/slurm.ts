@@ -17,7 +17,15 @@ const engineSys = {
                 "queueBin"  : "/data/www_dev/mad/bin/slurm/bin/squeue"
             },
             "iCache" : "mad/tmp"
-        }
+        },
+        "cstb-prod": {
+            "binaries": {
+                "submitBin" : "/data/www/cstb/bin/slurm/bin/sbatch",
+                "cancelBin" : "/data/www/cstb/bin/slurm/bin/scancel",
+                "queueBin"  : "/data/www/cstb/bin/slurm/bin/squeue"
+            },
+            "iCache" : "cstb/tmp"
+        },
     }
 }; 
 
@@ -96,6 +104,12 @@ const profiles = {
         "slurm_error":{
             "partition": "toto",
             "qos" : "toto"
+        },
+        "cstb-prod":{
+            "partition": "ws-prod",
+            "qos": "ws-prod",
+            "gid": "ws_users",
+            "uid": "ws_cstb"
         }
     }
 }
