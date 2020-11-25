@@ -26,6 +26,14 @@ const engineSys = {
             },
             "iCache" : "cstb/tmp"
         },
+        "mad-prod": {
+            "binaries": {
+                "submitBin" : "/data/www/mad/bin/slurm/bin/sbatch",
+                "cancelBin" : "/data/www/mad/bin/slurm/bin/scancel",
+                "queueBin"  : "/data/www/mad/bin/slurm/bin/squeue"
+            },
+            "iCache" : "mad/tmp"
+        }
     }
 }; 
 
@@ -110,6 +118,12 @@ const profiles = {
             "qos": "ws-prod",
             "gid": "ws_users",
             "uid": "ws_cstb"
+        },
+        "mad-prod":{
+            "partition": "ws-prod",
+            "qos": "ws-prod",
+            "gid": "ws_users",
+            "uid": "ws_mad"
         }
     }
 }
