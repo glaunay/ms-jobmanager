@@ -597,21 +597,51 @@ export class jobObject extends jobProxy implements jobOptInterface  {
    //     });
     }
 
-    submit(fname:string):void {
-        let self = this;
+    submit(fname:string):void {        
         let submitArgArray = [fname];
 
-        logger.debug(`submitting w/, ${this.engine.submitBin} ${submitArgArray}`);
+        logger.debug(`job submitting w/, ${this.engine.submitBin} ${submitArgArray}`);
         logger.debug(`workdir : > ${this.workDir} <`);
         let child = childProc.spawn(this.engine.submitBin, [fname]
         , {
             cwd: this.workDir,           
-            detached: true, 
+            detached: false, //false, 
             //shell : true,
             stdio: [ 'ignore', 'pipe', 'pipe' ] // ignore stdin, stdout / stderr set to pipe 
-        }); 
+        });
         // and unref() somehow disentangles the child's event loop from the parent's: 
-        child.unref(); 
+        //child.unref(); 
+        child.on("exit", ()=>{ logger.debug('Child process exited'); });
+        child.on("error", ()=>{ logger.debug('Child process error state'); });
+        child.on("close", ()=>{ logger.debug('Child process close'); });
+        child.on("end", ()=>{ logger.debug('Child process ended'); });
+        child.stdout.pipe(process.stdout);
+        child.stderr.pipe(process.stderr);
+        process.stdout.write('##stdout##');
+        process.stderr.write('##stderr##');
+
+        /*
+        let stdoutData = '';
+        child.stdout.on('data', function(data:any) {
+            stdoutData += data;            
+        });
+        child.stdout.on('end', function() {
+            logger.debug(`submission stdout::${stdoutData}`);
+        });
+
+        let stderrData = '';
+        child.stderr.on('data', function(data:any) {
+            stderrData += data;            
+        });
+        child.stderr.on('end', function() {
+            logger.debug(`submission stderr::${stderrData}`);
+        });
+        */
+        
+
+
+
+      
         
         if(this.emulated) {
             let fNameStdout:string = this.fileOut ? this.fileOut : this.id + ".out"; 
