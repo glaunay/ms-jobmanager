@@ -1,4 +1,4 @@
-import logger = require('winston');
+import {logger} from '../logger.js';
 import figures = require('figures');
 
 
