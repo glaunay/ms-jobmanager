@@ -206,7 +206,6 @@ class jobAccumulator extends events.EventEmitter {
         });
         ['submitted', 'ready'].forEach((eName) => {
             socket.on(eName, (jobSerial) => {
-                logger.silly(`socket on ${eName}`)
                 let jRef = this.getJobObject(jobSerial.id);
                 if (!jRef)
                     return;
@@ -236,15 +235,26 @@ class jobAccumulator extends events.EventEmitter {
 function start(opt) {
     let evt = new EventEmitter();
     jobAccumulator = new jobAccumulator();
+    let joker = 5; 
     //socket.connect('http://localhost:8080');
     // KINDA USELESS FOR NOW
     let url = 'http://' + opt.TCPip + ':' + opt.port;
     logger.debug(`jobmanager core microservice coordinates defined as \"${url}\"`);
-    socket = io(url).on("connect", (d) => {
-        logger.debug(`manage to connect to jobmanager core microservice at ${url}`);
-        evt.emit("ready");
-        jobAccumulator.bind(socket);
-    });
+    socket = io(url); 
+    
+    socket.on("connect", (d) => {
+            logger.debug(`manage to connect to jobmanager core microservice at ${url}`);
+            evt.emit("ready");
+            jobAccumulator.bind(socket);
+        })
+    socket.on("connect_error", (err) => {
+            joker--
+            if (joker === 0) {
+                socket.disconnect()
+                evt.emit("connectionError")
+            }
+            
+        });
     return evt;
 }
 function pull(_jobSerial) {
