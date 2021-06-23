@@ -43,8 +43,7 @@ const profiles = {
         "ifb-slurm": {
         },
         "default": {
-            "partition": "medium",
-            "qos": "medium"
+            "partition": "short"
         },
         "crispr-dev": {
             "partition": "ws-dev",

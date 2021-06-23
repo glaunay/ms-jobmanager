@@ -51,9 +51,9 @@ let preprocessorMapper:engineLib.preprocessorMapperType = {
 
 export class slurmEngine implements engineLib.engineInterface {
     // Typeguard this w/ setters and path/Exec check
-    submitBin:string = '/opt/slurm/bin/sbatch'; 
-    cancelBin:string = '/opt/slurm/bin/scancel';
-    queueBin:string  = '/opt/slurm/bin/squeue';
+    submitBin:string = '/usr/bin/sbatch'; 
+    cancelBin:string = '/usr/bin/scancel';
+    queueBin:string  = '/usr/bin/squeue';
     specs:engineLib.engineSpecs='slurm';
     iCache?:string;
 
