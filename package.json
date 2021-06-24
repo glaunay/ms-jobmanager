@@ -28,7 +28,7 @@
     "@types/uuid": "^3.4.3",
     "async": "^2.6.0",
     "commander": "^2.15.1",
-    "date-and-time": "^0.6.2",
+    "date-and-time": "^0.14.2",
     "deep-equal": "^1.0.1",
     "figures": "^2.0.0",
     "is-stream": "^1.1.0",
