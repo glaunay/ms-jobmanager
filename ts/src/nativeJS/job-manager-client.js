@@ -205,7 +205,8 @@ class jobAccumulator extends events.EventEmitter {
             });
         });
         ['submitted', 'ready'].forEach((eName) => {
-            socket.on(eName, (jobSerial) => {
+            socket.on(eName, (_jobSerial) => {
+                const jobSerial = JSON.parse(_jobSerial)
                 let jRef = this.getJobObject(jobSerial.id);
                 if (!jRef)
                     return;
