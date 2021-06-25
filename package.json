@@ -1,6 +1,6 @@
 {
   "name": "ms-jobmanager",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "A micro-service to handle job instanciation and submission ",
   "main": "build/nativeJS/job-manager-client.js",
   "scripts": {
