@@ -8,13 +8,13 @@ import path = require("path");
 import stream = require('stream')
 import md5 = require('md5');
 import streamLib = require('stream');
-import {logger} from './logger.js';
+import {logger} from '../logger.js';
 
-import engineLib = require('./lib/engine/index.js');
-import cType = require('./commonTypes.js');
-import { dummyEngine } from './lib/engine/index.js';
+import engineLib = require('../lib/engine/index.js');
+import cType = require('../commonTypes.js');
+import { dummyEngine } from '../lib/engine/index.js';
 
-import {socketPull} from './nativeJS/job-manager-server';
+import {socketPull} from '../nativeJS/job-manager-server';
 import crypto = require('crypto');
 
 import childProc = require('child_process');
@@ -60,7 +60,11 @@ export interface jobOptProxyInterface {
 type socketPullArgs = [jobObject|jobProxy, Promise<streamLib.Readable>, Promise<streamLib.Readable>] | [jobObject|jobProxy, undefined, undefined];
 
 
-
+export function melting(previousJobs:jobObject, newJob:jobObject) {
+    // Local melting
+    newJob.isShimmeringOf = previousJobs;
+    previousJobs.hasShimmerings.push(newJob);
+}
 
 /*
     type guard for data container send from the consumer microservice to the JM.
@@ -478,39 +482,10 @@ export class jobObject extends jobProxy implements jobOptInterface  {
         this.engine = engineLib.getEngine(this.engine.specs);
         logger.info(`Overidding default engine for ${this.engine.specs} w/ settings ${sysSettingsKey}`);
         this.engine.setSysProfile(sysSettingsKey);
-       
-        /*
-        if (!templateJobEngine.hasOwnProperty("engineSpecs") ) {
-            logger.error("Specified job engine lacks \"engineSpecs\" key using default engine");
-            return;
-        }
-        if(!engineLib.isEngineSpec(templateJobEngine.engineSpecs)) {
-            logger.error(`Specified job engine is unregistred \"${templateJobEngine.engineSpecs}\"`);
-            return;   
-        }
-        
-        if (templateJobEngine.hasOwnProperty("binariesSpec") ) {
-            if(!templateJobEngine.binariesSpec) {
-                logger.error("Specified job engine features an undefined \"binariesSpec\" object using defaule engine");
-                return;
-            }
-            if(!engineLib.isBinariesSpec(templateJobEngine.binariesSpec)) {
-                logger.error(`Specified job engine is unregistred \"${templateJobEngine.binariesSpec}\"`);
-                return;   
-            }
-        }
-        logger.info(`Overidding default engine with ${templateJobEngine.engineSpecs} ${templateJobEngine.binariesSpec??""}`);
-        
-          this.engine = engineLib.getEngine(templateJobEngine.engineSpecs, templateJobEngine.binariesSpec);
-          */
     }
-    /*
-
-    */
-   toJSON():jobSerialInterface{
-       
-    return this.getSerialIdentity();
-   }
+    toJSON():jobSerialInterface{
+       return this.getSerialIdentity();
+    }
     start () :void {
 
         let self = this;

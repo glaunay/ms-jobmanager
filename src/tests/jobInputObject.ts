@@ -1,4 +1,4 @@
-import jobLib = require('../job.js');
+import jobLib = require('../job');
 import logger = require('../logger.js');
 import util = require('util');
 /*

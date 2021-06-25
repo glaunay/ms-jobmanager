@@ -57,23 +57,29 @@
   }
   ,
    "files": [ // path to the files to compile
-        "./ts/src/index.ts",
-        "./ts/src/commonTypes.ts",
-        "./ts/src/tests/jobManager_s1.ts",
-        "./ts/src/tests/jobManager_s2.ts",
-        "./ts/src/logger.ts",
-        "./ts/src/job.ts",
-        "./ts/src/lib/engine/index.ts",
-        "./ts/src/lib/engine/localNixLike.ts",
-        "./ts/src/lib/engine/profiles/index.ts",
-        "./ts/src/lib/engine/profiles/localNixLike.ts",
-        "./ts/src/lib/pool.ts",
-        "./ts/src/tests/jm-client.ts",
-        "./ts/src/tests/jm-server.ts",
-        "./ts/src/tests/jobInputObject.ts",
-        "./ts/src/lib/engine/profiles/slurm.ts",
-        "./ts/src/bin/startServer.ts",
-        "./ts/src/nativeJS/job-manager-client.js"
+        "./src/index.ts",
+        "./src/commonTypes.ts",
+        "./src/tests/jobManager_s1.ts",
+        "./src/tests/jobManager_s2.ts",
+        "./src/logger.ts",
+        "./src/job/index.ts",
+        "./src/job/template.ts",
+        "./src/lib/engine/index.ts",
+        "./src/lib/engine/localNixLike.ts",
+        "./src/lib/engine/profiles/index.ts",
+        "./src/lib/engine/profiles/localNixLike.ts",
+        "./src/lib/pool.ts",
+        "./src/tests/jm-client.ts",
+        "./src/tests/jm-server.ts",
+        "./src/tests/jobInputObject.ts",
+        "./src/lib/engine/profiles/slurm.ts",
+        "./src/bin/startServer.ts",
+        "./src/nativeJS/job-manager-client.js",
+        "./src/coreTypes.ts",
+        "./src/coreSocket.ts",
+        "./src/warden.ts",
+
+        "./src/warehouseWrapper.ts"
     ],
-   //"include": ["./ts/src/nativeJS/*"]
+   //"include": ["./src/nativeJS/*"]
 }

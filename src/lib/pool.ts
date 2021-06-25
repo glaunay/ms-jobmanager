@@ -3,7 +3,7 @@
 */
 import deepEqual = require('deep-equal');
 import util = require('util');
-import jobLib = require('../job.js');
+import { jobObject, jobSerialInterface } from '../job';
 import cType = require('../commonTypes.js');
 //import {lookup as liveLookup, add as liveStore, remove as liveDel} from "./warehouse.js";
 import {logger} from '../logger.js';
@@ -22,7 +22,7 @@ export function isShimOrStatus(type: jobShimmering|jobStatus): type is shimOrSta
 
 
 interface jobWrapper {
-    'obj': jobLib.jobObject,
+    'obj': jobObject,
     'status': jobStatus,
     'nCycle': number,
     'sType' : jobShimmering|undefined
@@ -31,7 +31,7 @@ interface jobWrapper {
 
 let jobsArray : {[s:string] : jobWrapper } = {};
 
-export type ISearchKey = { jid: string } | { jobSerial: jobLib.jobSerialInterface } | { jobObject:jobLib.jobObject };
+export type ISearchKey = { jid: string } | { jobSerial: jobSerialInterface } | { jobObject:jobObject };
 
 
 export function size(opt?:string):number{
@@ -58,7 +58,7 @@ export function removeJob(query:ISearchKey):boolean {
     let queryID = coherceToID(query);
     if(!queryID)
         return false;
-    let jobToDel:jobLib.jobObject|undefined = getJob(query);
+    let jobToDel:jobObject|undefined = getJob(query);
     if (!jobToDel) {
         logger.debug(`No job in memory for job selector ${query}`);
         return false;
@@ -73,7 +73,7 @@ export function removeJob(query:ISearchKey):boolean {
     return true;
 }
 
-export function addJob(newJob:jobLib.jobObject){
+export function addJob(newJob:jobObject){
     let nWrapper:jobWrapper = {
         'obj': newJob,
         'status': 'CREATED',
@@ -125,7 +125,7 @@ ${asString()}`);
     return undefined;
 }
 
-export function getJob(query:ISearchKey):jobLib.jobObject|undefined {
+export function getJob(query:ISearchKey):jobObject|undefined {
     let jobWrapper = getJobWrapper(query);
     if(jobWrapper) 
         return jobWrapper.obj;
@@ -148,7 +148,7 @@ export function getJobStatus(query:ISearchKey):jobStatus|undefined {
 
 export function asString():string {
     return Object.keys(jobsArray).map((jid:string)=>{
-        let j:jobLib.jobObject = <jobLib.jobObject>getJob({'jid' : jid});
+        let j:jobObject = <jobObject>getJob({'jid' : jid});
         return `${util.format(j.toJSON())}`;
     }).join('\n');
 }
@@ -243,7 +243,7 @@ function _intersect(a:any[], b:any[]):any[] {
 
 type deepKey = 'exportVar'| 'modules'| 'inputHash';
 type shallowKey = 'tagTask'| 'scriptHash';
-function isConstraintsOk(item:jobLib.jobSerialInterface, query:jobLib.jobSerialInterface): boolean {
+function isConstraintsOk(item:jobSerialInterface, query:jobSerialInterface): boolean {
     // Deep check // escaping module values check
     for ( let field of ['exportVar', 'inputHash', 'modules']) {
         let k = <deepKey>field;
@@ -287,8 +287,8 @@ function isConstraintsOk(item:jobLib.jobSerialInterface, query:jobLib.jobSerialI
 }
 
 /* --  a function that look for jobs satisfying a constraints in a list --*/
-export function lookup(jobAsked:jobLib.jobObject):jobLib.jobObject[]|undefined {
-    let hits:jobLib.jobObject[] = []
+export function lookup(jobAsked:jobObject):jobObject[]|undefined {
+    let hits:jobObject[] = []
     let query = jobAsked.getSerialIdentity();
     for (let job of sourceJobIter()) {
         let item = job.getSerialIdentity();
