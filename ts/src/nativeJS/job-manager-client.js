@@ -234,29 +234,27 @@ class jobAccumulator extends events.EventEmitter {
  *          'completed', {Stream}stdio, {Stream}stderr, {Object}job // this event raising is delegated to jobManager
  */
 function start(opt) {
-    let evt = new EventEmitter();
-    jobAccumulator = new jobAccumulator();
-    let joker = 5; 
-    //socket.connect('http://localhost:8080');
-    // KINDA USELESS FOR NOW
-    let url = 'http://' + opt.TCPip + ':' + opt.port;
-    logger.debug(`jobmanager core microservice coordinates defined as \"${url}\"`);
-    socket = io(url); 
+    return new Promise ( (resolve, reject) => {    
+        jobAccumulator = new jobAccumulator();
+        let joker = 5; 
+        let url = 'http://' + opt.TCPip + ':' + opt.port;
+        logger.debug(`jobmanager core microservice coordinates defined as \"${url}\"`);
+        socket = io(url); 
     
-    socket.on("connect", (d) => {
-            logger.debug(`manage to connect to jobmanager core microservice at ${url}`);
-            evt.emit("ready");
+        socket.on("connect", (d) => {
+            logger.debug(`manage to connect to jobmanager core microservice at ${url}`);            
             jobAccumulator.bind(socket);
+            resolve();
         })
-    socket.on("connect_error", (err) => {
+        socket.on("connect_error", (err) => {
             joker--
             if (joker === 0) {
                 socket.disconnect()
-                evt.emit("connectionError")
+                reject("socket connection error");
             }
             
         });
-    return evt;
+    });
 }
 function pull(_jobSerial) {
     let jobSerial = JSON.parse(_jobSerial);
@@ -276,6 +274,7 @@ function pull(_jobSerial) {
     return;
 }
 function push(data) {
+    
     let jobOpt = {
         id: undefined,
         script: undefined,
@@ -326,5 +325,8 @@ function buildStreams(data, job) {
      logger.debug(`${util.format(sMap.script)}`);*/
     return data;
 }
-exports.push = push;
-exports.start = start;
+
+export {push, start}
+//exports.push = push;
+//exports.start = start;
+//exports.hello =
