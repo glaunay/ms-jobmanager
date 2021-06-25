@@ -6,17 +6,9 @@ import util = require('util');
 import isStream = require('is-stream');
 import path = require("path");
 import stream = require('stream')
-import dir = require('node-dir');
 import md5 = require('md5');
 import streamLib = require('stream');
-//import spawn = require('spawn');
 import {logger} from './logger.js';
-
-import { spawn } from 'child_process';
-
-//var Readable = require('stream').Readable;
-//var spawn = require('child_process').spawn;
-
 
 import engineLib = require('./lib/engine/index.js');
 import cType = require('./commonTypes.js');
@@ -27,11 +19,27 @@ import crypto = require('crypto');
 
 import childProc = require('child_process');
 
+//import { jobOptProxyInterface } from './job';
 /*
     job serialization includes
     workDir relateive to jobMnager file system
     fileName : hash value
 */
+
+export interface inputDataSocket { [s: string] : streamLib.Readable|string; }
+export interface jobOptProxyInterface {
+    //engine? : engineLib.engineInterface; 
+    script? : string|streamLib.Readable,
+    jobProfile?: string;
+    cmd? : string,
+    exportVar? : cType.stringMap,
+    inputs? : inputDataSocket|string[]|jobInputs,
+    tagTask? : string,
+    namespace? :string,
+    modules? : string [],
+    socket?:any,//SocketIO.socket WE DONT TYPEGUARD IT YET !!
+}
+
 
 
 
@@ -53,19 +61,6 @@ import childProc = require('child_process');
 type socketPullArgs = [jobObject|jobProxy, Promise<streamLib.Readable>, Promise<streamLib.Readable>] | [jobObject|jobProxy, undefined, undefined];
 
 
-export interface inputDataSocket { [s: string] : streamLib.Readable|string; }
-export interface jobOptProxyInterface {
-    //engine? : engineLib.engineInterface; 
-    script? : string|streamLib.Readable,
-    jobProfile?: string;
-    cmd? : string,
-    exportVar? : cType.stringMap,
-    inputs? : inputDataSocket|string[]|jobInputs,
-    tagTask? : string,
-    namespace? :string,
-    modules? : string [],
-    socket?:any//SocketIO.socket WE DONT TYPEGUARD IT YET !!
-}
 
 
 /*
