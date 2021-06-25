@@ -33,6 +33,11 @@ export interface engineTest {
 export interface engineKill {
     (jobList:jobLib.jobObject[], overrideBinary?:string) :events.EventEmitter;
 }
+
+export interface engineExecUser {
+    ():string|undefined
+}
+
 export interface engineInterface {
     generateHeader : engineHeaderFunc;
     submitBin : string;
@@ -44,6 +49,7 @@ export interface engineInterface {
     specs:engineSpecs;
     setSysProfile : setSysProfileFunc;
     iCache?:string;
+    execUser?: string; 
 }
 
 export type engineSpecs = "slurm" | "sge" | "emulate" | "dummy";

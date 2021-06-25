@@ -19,7 +19,6 @@ import crypto = require('crypto');
 
 import childProc = require('child_process');
 
-//import { jobOptProxyInterface } from './job';
 /*
     job serialization includes
     workDir relateive to jobMnager file system
@@ -395,7 +394,8 @@ export class jobProxy extends events.EventEmitter implements jobOptProxyInterfac
             let _args = args.map((e)=>{
                 return JSON.stringify(e); // Primitive OR 
             });
-            logger.silly(`socket emiting event ${String(eName)}`);            
+            logger.debug(`socket emiting event ${String(eName)}`);    
+            logger.debug(_args);         
             this.socket.emit(eName, ..._args);
         }
         return true;
@@ -426,6 +426,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
     port :number; // JobManager MicroService Coordinates
     adress :string; // ""
     workDir :string;
+    execUser?: string; 
 
 // Opt, set by object setter
     
@@ -447,6 +448,10 @@ export class jobObject extends jobProxy implements jobOptInterface  {
         this.port = jobOpt.port;
         this.adress = jobOpt.adress;
         this.workDir = jobOpt.workDir;
+        //logger.info() 
+
+        //const completeProfile = jobOpt.jobProfile === "default" ? undefined : getSlurmProfile(jobOpt.jobProfile)
+        //this.execUser = completeProfile ? completeProfile.execUser : undefined
       
         if ('emulated' in jobOpt)
             this.emulated = jobOpt.emulated;
@@ -579,6 +584,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
 
     // Process argument to create the string which will be dumped to an sbatch file
     launch() : void {
+        //logger.debug("launching")
         let fname = this.workDir + '/' + this.id + '.batch';
         /*batchDumper(this).on('ready', function(string) {
             fs.writeFile(fname, string, function(err) {
@@ -594,26 +600,29 @@ export class jobObject extends jobProxy implements jobOptInterface  {
 
     submit(fname:string):void {        
         let submitArgArray = [fname];
-
+        //logger.info(util.format(this))
         logger.debug(`job submitting w/, ${this.engine.submitBin} ${submitArgArray}`);
-        logger.debug(`workdir : > ${this.workDir} <`);
-        let child = childProc.spawn(this.engine.submitBin, [fname]
+        ///logger.debug(`workdir : > ${this.workDir} <`);
+        logger.info(`execUser : ${this.engine.execUser}`); 
+        const cmd = this.engine.execUser ? 'sudo' : this.engine.submitBin
+        const args = this.engine.execUser ? ['-u', this.engine.execUser, this.engine.submitBin, fname] : [fname]
+        logger.info(`execute : > ${cmd} ${args}`)
+        let child = childProc.spawn(cmd, args
         , {
             cwd: this.workDir,           
             detached: false, //false, 
             //shell : true,
+            //uid: 1322, 
             stdio: [ 'ignore', 'pipe', 'pipe' ] // ignore stdin, stdout / stderr set to pipe 
         });
         // and unref() somehow disentangles the child's event loop from the parent's: 
         //child.unref(); 
         child.on("exit", ()=>{ logger.debug('Child process exited'); });
-        child.on("error", ()=>{ logger.debug('Child process error state'); });
+        child.on("error", (err)=>{ logger.debug('Child process error state'); logger.error(err) });
         child.on("close", ()=>{ logger.debug('Child process close'); });
         child.on("end", ()=>{ logger.debug('Child process ended'); });
         child.stdout.pipe(process.stdout);
         child.stderr.pipe(process.stderr);
-        process.stdout.write('##stdout##');
-        process.stderr.write('##stderr##');
 
         /*
         let stdoutData = '';
@@ -647,7 +656,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
             child.stdout.pipe(streamOut);
             child.stderr.pipe(streamErr);
         }
-        this.emit("submitted", this)
+        this.jEmit("submitted", this)
     }
 
     resubmit():void  {

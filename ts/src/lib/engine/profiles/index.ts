@@ -1,6 +1,7 @@
 /* Now that we have a profile typeguard we should consider loading profile jit */
 import {logger} from '../../../logger.js';
 import cType = require('../../../commonTypes.js');
+import {profiles} from './slurm.js'
 
 export interface profileInterface {
     'comments' : string;

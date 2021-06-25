@@ -1,3 +1,4 @@
+import {profileInterface} from './index.js'
 
 const engineSys = {
     "comments": "Definition of specific submission/kill binaries and intermediary cache folders",
@@ -33,18 +34,34 @@ const engineSys = {
                 "queueBin"  : "/data/www/mad/bin/slurm/bin/squeue"
             },
             "iCache" : "mad/tmp"
-        }
+        }, 
+        "ws2-dev-mad" : {
+            "binaries": {
+                "submitBin" : "/usr/bin/sbatch",
+                "cancelBin" : "/usr/bin/scancel",
+                "queueBin"  : "/usr/bin/squeue"
+            },
+            "iCache" : "mad",
+            "execUser" : "ws_mad"
+        },
+        "ws2-dev-mad2" : {
+            "binaries": {
+                "submitBin" : "/usr/bin/sbatch",
+                "cancelBin" : "/usr/bin/scancel",
+                "queueBin"  : "/usr/bin/squeue"
+            },
+            "iCache" : "mad"
+        },
     }
 }; 
 
-const profiles = {
+const profiles: profileInterface = {
     "comments": "Definition of slurms set of preprocessors options values",
     "definitions": {
         "ifb-slurm": {
         },
         "default": {
-            "partition": "medium",
-            "qos": "medium"
+            "partition": "short"
         },
         "crispr-dev": {
             "partition": "ws-dev",
@@ -124,6 +141,9 @@ const profiles = {
             "qos": "ws-prod",
             "gid": "ws_users",
             "uid": "ws_mad"
+        },
+        "ws2-dev-mad": {
+            "partition" : "short"
         }
     }
 }
