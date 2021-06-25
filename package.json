@@ -10,14 +10,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/melaniegarnier/ms-jobmanager.git"
+    "url": "git+https://github.com/glaunay/ms-jobmanager.git"
   },
   "author": "MG, GL, VR, CH",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/melaniegarnier/ms-jobmanager/issues"
+    "url": "https://github.com/glaunay/ms-jobmanager/issues"
   },
-  "homepage": "https://github.com/melaniegarnier/ms-jobmanager#readme",
+  "homepage": "https://github.com/glaunay/ms-jobmanager#readme",
   "dependencies": {
     "@types/async": "^2.0.48",
     "@types/deep-equal": "^1.0.1",
