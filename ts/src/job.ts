@@ -458,8 +458,8 @@ export class jobObject extends jobProxy implements jobOptInterface  {
         this.workDir = jobOpt.workDir;
         //logger.info() 
 
-        const completeProfile = jobOpt.jobProfile === "default" ? undefined : getSlurmProfile(jobOpt.jobProfile)
-        this.execUser = completeProfile ? completeProfile.execUser : undefined
+        //const completeProfile = jobOpt.jobProfile === "default" ? undefined : getSlurmProfile(jobOpt.jobProfile)
+        //this.execUser = completeProfile ? completeProfile.execUser : undefined
       
         if ('emulated' in jobOpt)
             this.emulated = jobOpt.emulated;
@@ -611,10 +611,9 @@ export class jobObject extends jobProxy implements jobOptInterface  {
         //logger.info(util.format(this))
         logger.debug(`job submitting w/, ${this.engine.submitBin} ${submitArgArray}`);
         ///logger.debug(`workdir : > ${this.workDir} <`);
-        logger.info(`execUser : ${this.execUser}`); 
-        const cmd = this.execUser ? 'sudo' : this.engine.submitBin
-        const args = this.execUser ? ['-u', this.execUser, this.engine.submitBin, fname] : [fname]
-        const cmdLine = this.execUser ? `sudo -u ${this.execUser} ${this.engine.submitBin}` : this.engine.submitBin
+        logger.info(`execUser : ${this.engine.execUser}`); 
+        const cmd = this.engine.execUser ? 'sudo' : this.engine.submitBin
+        const args = this.engine.execUser ? ['-u', this.engine.execUser, this.engine.submitBin, fname] : [fname]
         logger.info(`execute : > ${cmd} ${args}`)
         let child = childProc.spawn(cmd, args
         , {

@@ -41,8 +41,17 @@ const engineSys = {
                 "cancelBin" : "/usr/bin/scancel",
                 "queueBin"  : "/usr/bin/squeue"
             },
+            "iCache" : "mad",
+            "execUser" : "ws_mad"
+        },
+        "ws2-dev-mad2" : {
+            "binaries": {
+                "submitBin" : "/usr/bin/sbatch",
+                "cancelBin" : "/usr/bin/scancel",
+                "queueBin"  : "/usr/bin/squeue"
+            },
             "iCache" : "mad"
-        }
+        },
     }
 }; 
 
@@ -134,8 +143,7 @@ const profiles: profileInterface = {
             "uid": "ws_mad"
         },
         "ws2-dev-mad": {
-            "partition" : "short",
-            "execUser" : "ws_mad"
+            "partition" : "short"
         }
     }
 }

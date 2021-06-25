@@ -51,7 +51,3 @@ function _preprocessorDump (obj:cType.stringMap):string {
         str += `export ${k}=${obj[k]}\n`;
     return str;
 }
-
-export function getSlurmProfile(profileKey:any){
-    return profiles["definitions"][profileKey]; 
-}

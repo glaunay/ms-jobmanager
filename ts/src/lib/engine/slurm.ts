@@ -56,6 +56,7 @@ export class slurmEngine implements engineLib.engineInterface {
     queueBin:string  = '/usr/bin/squeue';
     specs:engineLib.engineSpecs='slurm';
     iCache?:string;
+    execUser?:string; 
 
     constructor(engineBinaries:engineLib.BinariesSpec|undefined){
         if (engineBinaries){
@@ -75,6 +76,9 @@ export class slurmEngine implements engineLib.engineInterface {
         this.cancelBin = sysSettings[sysKeyProfile].binaries.cancelBin;      
         if ( sysSettings[sysKeyProfile].hasOwnProperty('iCache') ) {
             this.iCache = sysSettings[sysKeyProfile].iCache;
+        }
+        if ( sysSettings[sysKeyProfile].hasOwnProperty('execUser') ) {
+            this.execUser = sysSettings[sysKeyProfile].execUser;
         }
     }
 
@@ -130,6 +134,9 @@ export class slurmEngine implements engineLib.engineInterface {
     }
     testCommand(){
         return 'sleep 10; echo "this is a dummy command"';
+    }
+    getExecUser(){
+        return this.execUser
     }
 }
 
