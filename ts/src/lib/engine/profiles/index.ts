@@ -1,6 +1,7 @@
 /* Now that we have a profile typeguard we should consider loading profile jit */
 import {logger} from '../../../logger.js';
 import cType = require('../../../commonTypes.js');
+import {profiles} from './slurm.js'
 
 export interface profileInterface {
     'comments' : string;
@@ -49,4 +50,8 @@ function _preprocessorDump (obj:cType.stringMap):string {
     for (let k in obj)
         str += `export ${k}=${obj[k]}\n`;
     return str;
+}
+
+export function getSlurmProfile(profileKey:any){
+    return profiles["definitions"][profileKey]; 
 }
