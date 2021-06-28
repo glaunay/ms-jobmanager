@@ -2,11 +2,11 @@
     Managing the jobManager Core jobs Object References
 */
 import deepEqual = require('deep-equal');
-import util = require('util');
 import { jobObject, jobSerialInterface } from '../job';
 import cType = require('../commonTypes.js');
 //import {lookup as liveLookup, add as liveStore, remove as liveDel} from "./warehouse.js";
 import {logger} from '../logger.js';
+import {format as uFormat} from 'util';
 
 export type jobStatus = "CREATED" | "SUBMITTED" | "COMPLETED"| "START"|"FINISHED";
 export function isJobStatus(type: string): type is jobStatus {
@@ -54,16 +54,18 @@ export function size(opt?:string):number{
 
 /*  We should follow shimmerings */
 export function removeJob(query:ISearchKey):boolean {
-    logger.debug(`Trying to remove ${query}`)
+    logger.silly(`Trying to remove ${uFormat(query)}`)
     let queryID = coherceToID(query);
-    if(!queryID)
+    if(!queryID) {
+        logger.error(`Unable to removeJob based on following query ${uFormat(query)}`);
         return false;
+    }
     let jobToDel:jobObject|undefined = getJob(query);
     if (!jobToDel) {
         logger.debug(`No job in memory for job selector ${query}`);
         return false;
     }
-    logger.debug(`Removing ${util.format(jobToDel)}\n
+    logger.debug(`Removing ${jobToDel.pprint()}\n
 ==>[${jobToDel.hasShimmerings.length} shimmerings to delete]`);
     jobToDel.hasShimmerings.forEach((shimerJob)=>{removeJob({jobObject:shimerJob});});
 
@@ -96,7 +98,7 @@ export function setCycle(query:ISearchKey, n:number|string):boolean{
     else if(n === '++')
         w.nCycle += 1;
     else {
-        logger.error('Cant set cycle with that \"${util.format(n)}\"');
+        logger.error(`Cant set cycle with that \"${uFormat(n)}\"`);
         return false;
     }
     return true;
@@ -149,7 +151,7 @@ export function getJobStatus(query:ISearchKey):jobStatus|undefined {
 export function asString():string {
     return Object.keys(jobsArray).map((jid:string)=>{
         let j:jobObject = <jobObject>getJob({'jid' : jid});
-        return `${util.format(j.toJSON())}`;
+        return `${uFormat(j.toJSON())}`;
     }).join('\n');
 }
 
@@ -211,7 +213,7 @@ function coherceToID(query:ISearchKey):string|undefined {
     if('jobObject' in query) 
         return query.jobObject.id;
     
-    logger.error(`can\'t coherce that ${util.format(query)}`);
+    logger.error(`can\'t coherce that ${uFormat(query)}`);
     return undefined;
 }
 
@@ -295,7 +297,7 @@ export function lookup(jobAsked:jobObject):jobObject[]|undefined {
         if( isConstraintsOk(query, item) )
             hits.push(job);
     }
-    logger.debug(`Found ${hits.length} hits`);
+    logger.silly(`Found ${hits.length} hits in liveMemory`);
     if(hits.length == 0) return undefined;
     return hits;
 

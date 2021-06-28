@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "which tsc; tsc",
-    "postbuild": "copyfiles -u 2 \"ts/src/nativeJS/job-manager-client.d.ts\" build"
+    "postbuild": "copyfiles -u 2 \"src/nativeJS/job-manager-client.d.ts\" build/nativeJS"
   },
   "repository": {
     "type": "git",

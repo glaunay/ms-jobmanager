@@ -2,6 +2,8 @@
 // https://stackoverflow.com/questions/53811426/how-to-write-d-ts-file-for-js-file-which-export-a-pure-object
 // Cannot figure how to use external types in custom declaration file
 
+declare module 'ms-jobmanager';
+
 interface connectionSettings {
     port  : number,
     TCPip : string 
@@ -23,4 +25,3 @@ export interface jobOptProxyClient {
 export function start(settings:connectionSettings):Promise<any>;
 
 export function push(jobOpt:jobOptProxyClient):any;
-

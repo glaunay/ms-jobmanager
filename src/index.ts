@@ -1,4 +1,4 @@
-import util = require('util');
+import {format as uFormat, inspect as uInspect} from 'util';
 import uuidv4 = require('uuid/v4');
 import events = require('events');
 import {logger} from './logger.js';
@@ -10,7 +10,7 @@ import {open as openSocket} from "./coreSocket";
 import {isSpecs, jobManagerSpecs} from "./coreTypes";
 export {engineSpecs} from './lib/engine/index.js';
 import {wardenKick, jobWarden, setWarden } from './warden';
-import {coherceIntoJobTemplate} from './job/template';
+import {coherceIntoJobTemplate, pprintJobTemplate} from './job/template';
 import { MS_lookup, test as whTest, setParameters as whSetConnect, storeJob } from './warehouseWrapper';
 import {create as createCache} from "./cache";
 
@@ -58,7 +58,7 @@ function _pulse() {
 //CH 02/12/19
 // Maybe use promess instead of emit("ready"), emit("error")
 export function start(opt:jobManagerSpecs):events.EventEmitter {
-    logger.debug(`${util.format(opt)}`);
+    logger.debug(`${uFormat(opt)}`);
 
     if (isStarted) {
         let t:NodeJS.Timer = setTimeout(()=>{ topLevelEmitter.emit("ready"); }, 50);
@@ -67,6 +67,7 @@ export function start(opt:jobManagerSpecs):events.EventEmitter {
 
     if (!isSpecs(opt)) {
         let msg:string = `Missing or wrong type arguments : engine, cacheDir, opt, tcp, binariesSpec (in conf file)`;
+        msg += `${uFormat(opt)}`
         //eventEmitter.emit("error", msg)
         let t:NodeJS.Timer = setTimeout(()=>{ topLevelEmitter.emit("error", msg); },50);
         return topLevelEmitter;
@@ -109,22 +110,21 @@ export function start(opt:jobManagerSpecs):events.EventEmitter {
     s.on('coreSocketError', (e:any)  => topLevelEmitter.emit('error', e))
     .on('coreSocketListen', () => {
         isStarted = true;
+        warden = setWarden({topLevelEmitter, engine, nWorker, wardenPulse})
         core      = setInterval(() => _pulse(), corePulse);
-        warden    = setInterval(() => jobWarden(), wardenPulse);
-
+        
         topLevelEmitter.emit("ready");
 
         logger.info(`${pprint(opt)}`);    
     })
     .on("coreSocketUnregistredJob", (jid)=> topLevelEmitter.emit("unregistredJob", jid))
     .on("letsPull", (job) => _pull(job)); //TO DO)
-
     return topLevelEmitter;
 }
 
 // New job packet arrived on MS socket, 1st arg is streamMap, 2nd the socket
 function pushMS(data:any, MS_socket:any) {
-    logger.debug(`newJob Packet arrived w/ ${util.format(data)}`);
+    logger.debug(`newJob Packet arrived w/ ${uFormat(data)}`);
     logger.silly(` Memory size vs nWorker :: ${liveMemory.size()} <<>> ${nWorker}`);
     if (liveMemory.size("notBound") >= nWorker) {
         logger.debug("must refuse packet, max pool size reached");
@@ -147,14 +147,14 @@ function pushMS(data:any, MS_socket:any) {
 
 /* weak typing of the jobOpt  parameter */
 export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, namespace?: string) : jobObject {
-    logger.debug(`Following litteral was pushed \n ${util.format(jobOpt)}`);
+    logger.debug(`Following litteral was pushed \n ${uInspect(jobOpt, false, 0)}`);
 
     const jobID = jobOpt.id || uuidv4();
     const workDir:string = cacheDir + '/' + jobID;
 
     const jobTemplate = coherceIntoJobTemplate(jobProfileString, jobOpt, workDir, { engine, emulator, TCPip, TCPport });
   
-    logger.debug(`Following jobTemplate was successfully buildt \n ${util.format(jobTemplate)}`);
+    logger.debug(`Following jobTemplate was successfully buildt \n ${pprintJobTemplate(jobTemplate)}`);
     let newJob = new jobObject(jobTemplate, jobID);
 
     // All engine parameters are set at this stage, working on folder creations should be safe
@@ -177,7 +177,7 @@ export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, 
           // newJob.melt // replace newJob by an already running job
           //                just copying client socket if fromConsumerMS 
 
-    logger.debug(`Following jobObject was successfully buildt \n ${util.format(newJob)}`);
+    logger.debug(`Following jobObject was successfully buildt \n ${newJob.pprint()}`);
         
 
     newJob.start();
@@ -201,15 +201,14 @@ export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, 
         case1) warehouse/-, jobsArray/-              => submit
         case2) warehouse/+, dont look at jobsArray   => resurrect
         case3) warehouse/-, jobsArray/+              => copy jobReference and return it
-*/
-
+        */
         MS_lookup(jobSerial)
             .on('known', function(fStdoutName: string, fStderrName: string, workPath: string) {
                 newJob.respawn(fStdoutName, fStderrName, workPath);
                 newJob.jEmit("completed", newJob);
             })
             .on('unknown', function() {
-                logger.debug("####No suitable job found in warehouse");
+                logger.silly("####No suitable job found in warehouse");
                 
                 let previousJobs:jobObject[]|undefined;
                 previousJobs = liveMemory.lookup(newJob);
@@ -245,9 +244,7 @@ export function push(jobProfileString : string, jobOpt:any /*jobOptInterface*/, 
 /*
     handling job termination.
     Eventualluy resubmit job if error found
-
 */
-
 function _pull(job:jobObject):void { 
     logger.silly(`Pulling ${job.id}`);
     job.stderr().then((streamError) => {     
@@ -278,7 +275,7 @@ function _pull(job:jobObject):void {
 function _storeAndEmit(jid:string, status?:string) {
 
     //let jobSel = {'jid' : jid};
-    logger.debug("Store&Emit");
+    logger.silly("Store&Emit");
     let jobObj:jobObject|undefined = liveMemory.getJob({ jid });
     if (jobObj) {
         liveMemory.removeJob({ jid });

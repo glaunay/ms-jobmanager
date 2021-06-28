@@ -59,9 +59,9 @@ function parseMessage(msg:string) {
     if (job) {
         if (uStatus === 'START') {
             job.jEmit('jobStart', job);
-            logger.debug("parsing Message ==> emit jobStart");
+            logger.silly("parsing message triggers emit jobStart");
         } else if (uStatus === "FINISHED") {
-            logger.debug("parsing Message ==> FINISHED && pullin");
+            logger.silly("parsing Message triggers FINISHED && pullin");
             eventEmitterSocket.emit("letsPull", job);
         }   
      //logger.error(`TO DO`);

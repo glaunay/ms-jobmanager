@@ -2,7 +2,7 @@ import events = require('events');
 import uuidv4 = require('uuid/v4');
 import fs = require('fs');
 import mkdirp = require('mkdirp');
-import util = require('util');
+import {format as uFormat} from 'util';
 import isStream = require('is-stream');
 import path = require("path");
 import stream = require('stream')
@@ -18,6 +18,7 @@ import {socketPull} from '../nativeJS/job-manager-server';
 import crypto = require('crypto');
 
 import childProc = require('child_process');
+import { SSL_OP_NETSCAPE_REUSE_CIPHER_CHANGE_BUG } from 'constants';
 
 /*
     job serialization includes
@@ -61,9 +62,16 @@ type socketPullArgs = [jobObject|jobProxy, Promise<streamLib.Readable>, Promise<
 
 
 export function melting(previousJobs:jobObject, newJob:jobObject) {
+    logger.debug("metling!")
     // Local melting
     newJob.isShimmeringOf = previousJobs;
     previousJobs.hasShimmerings.push(newJob);
+    if(logger.level == 'debug') {
+        const shimAsStr = previousJobs.hasShimmerings.map((j)=>j.pprint()).reduce( (pStr:string, curr:string)=> {
+            return pStr += `$\n\t${curr}`;
+        });
+        logger.debug(`HEAD job is ${previousJobs.pprint()}\n\tCurrent shimmerings are [${shimAsStr}\n]`);
+    }
 }
 
 /*
@@ -155,9 +163,9 @@ export class jobInputs extends events.EventEmitter {
             buffer = data;
         }
         if (!cType.isStreamOrStringMap(buffer))
-            throw(`Wrong format for ${util.format(buffer)}`);
+            throw(`Wrong format for ${uFormat(buffer)}`);
         let nTotal = Object.keys(buffer).length;
-        logger.debug(`jobInput constructed w/ ${nTotal} items:\n${util.format(buffer)}`);
+        logger.debug(`jobInput constructed w/ ${nTotal} items:\n${uFormat(buffer)}`);
 
         let self = this;
         for (let key in data) {
@@ -290,11 +298,6 @@ export class jobInputs extends events.EventEmitter {
 }
 
 
-
-
-
-
-
 /*
     This object is meant to live in the job-manager-client space !!!!!!
     We write it here to use TS.
@@ -304,7 +307,6 @@ export class jobInputs extends events.EventEmitter {
     job.emit('inputError')
     job.emit('scriptError')
 */
-
 export class jobProxy extends events.EventEmitter implements jobOptProxyInterface{
     id : string;
 
@@ -344,6 +346,18 @@ export class jobProxy extends events.EventEmitter implements jobOptProxyInterfac
         this.inputs = new jobInputs(jobOpt.inputs);
 
     }
+    pprint():string {
+        let asString = `Job id : ${this.id}`;
+        asString += this.modules    ? `\n\tmodules    :${this.modules}`    : ''
+        asString += this.jobProfile ? `\n\tjobProfile :${this.jobProfile}` : ''
+        asString += this.script     ? `\n\tscript     :${this.script}`: ''
+        asString += this.tagTask    ? `\n\ttagTask    :${this.tagTask}`: ''
+        asString += this.namespace  ? `\n\tnamespace  :${this.namespace}`: ''
+        asString += this.socket     ? `\n\tsocket     :${this.socket}`: ''
+        asString += this.exportVar  ? `\n\texportVar  :${uFormat(this.exportVar)}`: ''
+        
+        return asString;
+    }
     // 2ways Forwarding event to consumer or publicMS 
     // WARNING wont work with streams
     jEmit(eName:string|symbol, ...args: any[]):boolean {
@@ -354,7 +368,7 @@ export class jobProxy extends events.EventEmitter implements jobOptProxyInterfac
         }); 
 
         // We call the original emitter anyhow
-        //logger.debug(`${eName} --> ${util.format(args)}`);
+        //logger.debug(`${eName} --> ${uFormat(args)}`);
         //this.emit.apply(this, eName, args);
         //this.emit.apply(this, [eName, ...args])
         if(eName !== 'completed') {
@@ -386,7 +400,7 @@ export class jobProxy extends events.EventEmitter implements jobOptProxyInterfac
            // logger.warn(`jEmitToSocket ${eName}`);
             if(eName === 'completed') {
 
-                //logger.debug(`SSP::\n${util.format(args)}`);
+                //logger.debug(`SSP::\n${uFormat(args)}`);
                 //socketPull(...args);//eventName, jobObject
                 let sArgs:socketPullArgs = [this, undefined, undefined];
                 if (this.isShimmeringOf)
@@ -398,8 +412,8 @@ export class jobProxy extends events.EventEmitter implements jobOptProxyInterfac
             let _args = args.map((e)=>{
                 return JSON.stringify(e); // Primitive OR 
             });
-            logger.debug(`socket emiting event ${String(eName)}`);    
-            logger.debug(_args);         
+            logger.silly(`socket emiting event ${String(eName)}`);    
+            logger.silly(_args);         
             this.socket.emit(eName, ..._args);
         }
         return true;
@@ -467,7 +481,6 @@ export class jobObject extends jobProxy implements jobOptInterface  {
         if ('ttl' in jobOpt)
             this.ttl = jobOpt.ttl;
 
-        
         //Default JM-level engine
         this.engine =  jobOpt.engine;
         if (! ("sysSettingsKey" in jobOpt) )
@@ -483,6 +496,11 @@ export class jobObject extends jobProxy implements jobOptInterface  {
         logger.info(`Overidding default engine for ${this.engine.specs} w/ settings ${sysSettingsKey}`);
         this.engine.setSysProfile(sysSettingsKey);
     }
+    
+    pprint(): string {
+        return super.pprint();
+    }
+
     toJSON():jobSerialInterface{
        return this.getSerialIdentity();
     }
@@ -575,7 +593,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
 
     submit(fname:string):void {        
         let submitArgArray = [fname];
-        //logger.info(util.format(this))
+        //logger.info(uFormat(this))
         logger.debug(`job submitting w/, ${this.engine.submitBin} ${submitArgArray}`);
         ///logger.debug(`workdir : > ${this.workDir} <`);
         logger.info(`execUser : ${this.engine.execUser}`); 
@@ -592,10 +610,10 @@ export class jobObject extends jobProxy implements jobOptInterface  {
         });
         // and unref() somehow disentangles the child's event loop from the parent's: 
         //child.unref(); 
-        child.on("exit", ()=>{ logger.debug('Child process exited'); });
-        child.on("error", (err)=>{ logger.debug('Child process error state'); logger.error(err) });
-        child.on("close", ()=>{ logger.debug('Child process close'); });
-        child.on("end", ()=>{ logger.debug('Child process ended'); });
+        child.on("exit", ()=>{ logger.silly('Child process exited'); });
+        child.on("error", (err)=>{ logger.silly('Child process error state'); logger.error(`        Child process error state: ${err}`) });
+        child.on("close", ()=>{ logger.silly('Child process close'); });
+        child.on("end", ()=>{ logger.silly('Child process ended'); });
         child.stdout.pipe(process.stdout);
         child.stderr.pipe(process.stderr);
 
@@ -641,7 +659,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
     }
 
     async stdout():Promise<streamLib.Readable>{
-        logger.debug(`async stdout call at ${this.id} `);
+        logger.silly(`async stdout call at ${this.id} `);
         let fNameStdout:string = this.fileOut ? this.fileOut : this.id + ".out";
         let fPath:string = this.workDir + '/' + fNameStdout;
         let stdoutStream:streamLib.Readable = await dumpAndWrap(fPath, this._stdout);
@@ -650,7 +668,7 @@ export class jobObject extends jobProxy implements jobOptInterface  {
     }
 
     async stderr():Promise<streamLib.Readable>{
-        logger.debug(`async stderr call at ${this.id} `)
+        logger.silly(`async stderr call at ${this.id} `)
         let fNameStderr:string = this.fileErr ? this.fileErr : this.id + ".err";
         let fPath:string = this.workDir + '/' + fNameStderr;
         let stderrStream:streamLib.Readable = await dumpAndWrap(fPath, this._stderr);
@@ -779,19 +797,19 @@ function dumpAndWrap(fName:string/*, localDir:string*/, sourceToDump?:streamLib.
                     resolve(stream);
                     return;
                 }
-                logger.error(`Should not be here:\n ${util.format(stat)}`);
+                logger.error(`Should not be here:\n ${uFormat(stat)}`);
             } else {
                 logger.warn(`cant find file ${fName}`);
                 if(sourceToDump){
 
-                    logger.debug(`Found alternative source dumping it from \n ${util.format(sourceToDump)}`);
+                    logger.debug(`Found alternative source dumping it from \n ${uFormat(sourceToDump)}`);
                     let target = fs.createWriteStream(fName, {'flags': 'a'});
                     sourceToDump.pipe(target);
                     target.on('close', () =>{
                     let stream:streamLib.Readable = fs.createReadStream(fName, {
                         'encoding': 'utf8'
                         });
-                        logger.debug(`should resolve with ${util.format(stream)}`);
+                        logger.debug(`should resolve with ${uFormat(stream)}`);
                         resolve(stream);
                         return;
                     });

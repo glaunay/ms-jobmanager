@@ -1,5 +1,7 @@
 import {jobOptInterface} from './index';
 import * as engineLib from '../lib/engine' ;
+import { ParseOptionsResult } from 'commander';
+import {format as uFormat} from 'util';
 
 interface jtSpecs {
     engine : engineLib.engineInterface,
@@ -40,4 +42,20 @@ export function coherceIntoJobTemplate(jobProfileString:string, _jt:any, workDir
         jt.sysSettingsKey = _jt.sysSettingsKey;
 
     return jt;
+}
+
+export function pprintJobTemplate(jt:jobOptInterface):string {
+
+    let asString = `jobOptInterface\n\tengine:${jt.engine}}\n\tworkDir:${jt.workDir}\n\temulated:${jt.emulated}`;
+    asString    += `\n\tadress/port:${jt.adress}${jt.port}\n\tjobProfile:${jt.jobProfile}`;
+    asString    += jt.modules        ? `\n\tmodules:${jt.modules}` : '';
+    asString    += jt.script         ? `\n\texportVar:${jt.script}` : '';
+    asString    += jt.cmd            ? `\n\tcmd:${jt.cmd}` : '';
+    asString    += jt.inputs         ? `\n\tinputs:${jt.inputs}` : '';
+    asString    += jt.exportVar      ? `\n\texportVar:${uFormat(jt.exportVar)}` : '';
+    asString    += jt.tagTask        ? `\n\ttagTask:${jt.tagTask}` : '';
+    asString    += jt.ttl            ? `\n\tttl:${jt.ttl}` : '';
+    asString    += jt.sysSettingsKey ? `\n\tsysSettingsKey:${jt.sysSettingsKey}` : '';
+
+    return asString;
 }

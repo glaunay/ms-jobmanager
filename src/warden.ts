@@ -17,11 +17,12 @@ interface wardenSpecs {
     nWorker:number,
     wardenPulse: number
 }
-export function setWarden(spec:wardenSpecs) {
+export function setWarden(spec:wardenSpecs):NodeJS.Timer {
     engine = spec.engine;
     nWorker = spec.nWorker;
     topLevelEmitter = spec.topLevelEmitter;
     wardenPulse = spec.wardenPulse;
+    return setInterval(() => jobWarden(), wardenPulse);
 }
 
 
@@ -31,12 +32,18 @@ export function wardenKick(msg:string, error:string, job:jobLib.jobObject):void{
     job.socket.emit('fsFatalError', msg, error, job.id)
 }
 
+
+let prevMemSize=0;
 export function jobWarden():void {
     if(!engine)
         throw("warden must be set");
         
     logger.silly("jobWarden")
-    logger.debug(`liveMemory size = ${liveMemory.size()}`);
+    const _ = liveMemory.size();
+    if (_ != prevMemSize) {
+        logger.debug(`liveMemory changed ${prevMemSize} => ${_}`);
+        prevMemSize = _;
+    }
     engine.list().on('data', function(d:engineLib.engineListData) {
         logger.silly(`${uFormat(d)}`);
         for (let job of liveMemory.startedJobiterator()) {

@@ -1,6 +1,6 @@
 "use strict";
 let EventEmitter = require('events').EventEmitter;
-let jobLib = require('../job.js');
+let jobLib = require('../job/index.js');
 let io = require('socket.io-client');
 //import cType = require('./commonTypes.js');
 let fs = require('fs');

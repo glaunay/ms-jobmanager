@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 let events = require('events');
 let socketIO = require('socket.io');
 let HTTP = require('http');
-let jobLib = require('../job.js');
+//let jobLib = require('../job/index.js');
 let ss = require('socket.io-stream');
 let my_logger = require('../logger.js');
 let logger = my_logger.logger;
@@ -62,22 +62,22 @@ exports.listen = listen;
 */
 function socketPull(jobObject, stdoutStreamOverride, stderrStreamOverride) {
     if (stdoutStreamOverride)
-        logger.debug("Shimmering Socket job pulling");
+        logger.debug(`${jobObject.id} Shimmering Socket job pulling`);
     else
-        logger.debug("Genuine socket job pulling");
+        logger.debug(`${jobObject.id} Genuine socket job pulling`);
     //  logger.debug(`${util.format(stdout)}`);
     let stdoutStream = stdoutStreamOverride ? stdoutStreamOverride : jobObject.stdout();
     let stderrStream = stderrStreamOverride ? stderrStreamOverride : jobObject.stderr();
     ss(jobObject.socket).on(`${jobObject.id}:stdout`, function (stream) {
         stdoutStream.then((_stdout) => {
-            logger.debug(`Pumping stdout [${jobObject.id}:stdout]`);
+            logger.silly(`${jobObject.id} Pumping stdout [${jobObject.id}:stdout]`);
             //logger.warn(`stdoutStream expected ${util.format(_stdout)}`);
             _stdout.pipe(stream);
         });
     });
     ss(jobObject.socket).on(`${jobObject.id}:stderr`, function (stream) {
         stderrStream.then((_stderr) => {
-            logger.debug(`Pumping stderr [${jobObject.id}:stderr]`);
+            logger.silly(`${jobObject.id} Pumping stderr [${jobObject.id}:stderr]`);
             //logger.warn(`stderrStream expected ${util.format(_stderr)}`);
             _stderr.pipe(stream);
         });
