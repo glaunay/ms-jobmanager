@@ -19,7 +19,8 @@ export interface jobOptProxyClient {
     tagTask? : string,
     namespace? :string,
     modules? : string [],
-    socket?:any
+    socket?:any,
+    sysSettingsKey?:string
 }
 
 export function start(settings:connectionSettings):Promise<any>;
