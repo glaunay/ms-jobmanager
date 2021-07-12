@@ -312,7 +312,7 @@ function buildStreams(data, job) {
     sMap.script.on('error', function () {
         let msg = `Failed to create read stream from ${data.script}`;
         job.emit('scriptError', msg);
-        throw ("No one here");
+        //throw ("No one here");
     });
     jobInput.on('streamReadError', (e) => {
         job.emit('inputError', e);
