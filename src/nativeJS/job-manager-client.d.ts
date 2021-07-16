@@ -10,7 +10,8 @@ interface connectionSettings {
 } 
 
 // Unfortunate local redifination of import(../job).jobOptProxyInterface
-export interface jobOptProxyClient {        
+export interface jobOptProxyClient {     
+    id?:string;
     script? : any,//import("stream").Readable|string,
     jobProfile?: string;
     cmd? : string,
